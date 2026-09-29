@@ -1,0 +1,26 @@
+# Teste 2 - soma os 5 elementos de um vetor usando laco, indexacao e formato 2.
+#   0000  LDX  #0          X = 0     (indice em bytes)
+#   0003  LDA  #0          A = 0
+#   0006  LDS  #3          S = 3     (tamanho da palavra)
+#   0009  LDT  #15         T = 15    (5 elementos * 3 bytes)
+#   000C  ADD  VETOR,X     A = A + vetor[X]        <- LOOP
+#   000F  ADDR S,X         X = X + 3
+#   0011  COMPR X,T        compara X com T
+#   0013  JLT  LOOP        volta (deslocamento NEGATIVO relativo ao PC)
+#   0016  STA  SOMA
+#   0019  RSUB
+#   001C  VETOR  = 1,2,3,4,5
+#   002B  SOMA
+START 0000
+0000: 05 00 00
+0003: 01 00 00
+0006: 6D 00 03
+0009: 75 00 0F
+000C: 1B 80 1C
+000F: 90 41
+0011: A0 15
+0013: 3B 2F F6
+0016: 0F 00 2B
+0019: 4F 00 00
+001C: 00 00 01 00 00 02 00 00 03 00 00 04 00 00 05
+002B: 00 00 00

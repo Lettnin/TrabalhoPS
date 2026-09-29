@@ -1,0 +1,4 @@
+# Erro esperado: Endereco fora da memoria: 008000
+#   0000  +J 8000     salta para logo depois do fim da memoria (32 KB = 0000 a 7FFF)
+START 0000
+0000: 3F 10 80 00

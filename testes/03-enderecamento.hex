@@ -1,0 +1,34 @@
+# Teste 3 - passa pelos modos de enderecamento principais e por sub-rotina.
+#   1000  +LDB #TABELA     formato 4 + imediato      B = 1033
+#   1004  LDA  #7          imediato                  A = 7
+#   1007  STA  TABELA      base-relativo (b=1)       mem[1033] = 7
+#   100A  LDA  #0          imediato                  A = 0
+#   100D  LDA  TABELA      base-relativo             A = 7
+#   1010  JSUB DOBRA       relativo ao PC            L = 1013
+#   1013  STA  RESULT      relativo ao PC            mem[1027] = 14
+#   1016  LDA  @PONTEIRO   indireto + relativo PC    A = 99
+#   1019  +STA FINAL       formato 4                 mem[102A] = 99
+#   101D  CLEAR L          formato 2                 L = 0
+#   101F  RSUB             L = 0 -> fim
+#   1022  DOBRA: ADDR A,A  A = A + A
+#   1024         RSUB      volta para L
+#   1027 RESULT   102A FINAL   102D PONTEIRO = 1030   1030 VALOR = 99   1033 TABELA
+START 1000
+1000: 69 10 10 33
+1004: 01 00 07
+1007: 0F 40 00
+100A: 01 00 00
+100D: 03 40 00
+1010: 4B 20 0F
+1013: 0F 20 11
+1016: 02 20 14
+1019: 0F 10 10 2A
+101D: B4 20
+101F: 4F 00 00
+1022: 90 00
+1024: 4F 00 00
+1027: 00 00 00
+102A: 00 00 00
+102D: 00 10 30
+1030: 00 00 63
+1033: 00 00 00

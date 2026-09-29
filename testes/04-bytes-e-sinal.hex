@@ -1,0 +1,39 @@
+# Teste 4 - deslocamentos, numeros negativos, divisao e operacoes de byte.
+#   0000  LDA  #7          A = 7
+#   0003  SHIFTL A,4       A = 7 deslocado 4 bits a esquerda = 112
+#   0005  SHIFTR A,2       A = 112 deslocado 2 bits a direita = 28
+#   0007  LDA  #10
+#   000A  SUB  #25         A = -15  (complemento de 2: FFFFF1)
+#   000D  STA  NEG
+#   0010  COMP #0          compara -15 com 0 -> CC fica em "<"
+#   0013  JLT  PULA
+#   0016  J    FIM         (nao deve ser executado)
+#   0019  PULA: LDCH TEXTO A recebe so o byte 'A' (41) na parte baixa
+#   001C  STCH SAIDA       grava esse byte em SAIDA
+#   001F  LDA  #100
+#   0022  DIV  #7          A = 14  (divisao inteira)
+#   0025  STA  DIVRES
+#   0028  FIM:  CLEAR L
+#   002A        RSUB
+#   0030 NEG   0033 TEXTO='ABC'   0036 SAIDA   0039 DIVRES
+START 0000
+0000: 01 00 07
+0003: A4 03
+0005: A8 01
+0007: 01 00 0A
+000A: 1D 00 19
+000D: 0F 00 30
+0010: 29 00 00
+0013: 3B 00 19
+0016: 3F 00 28
+0019: 53 00 33
+001C: 57 00 36
+001F: 01 00 64
+0022: 25 00 07
+0025: 0F 00 39
+0028: B4 20
+002A: 4F 00 00
+0030: 00 00 00
+0033: 41 42 43
+0036: 00 00 00
+0039: 00 00 00

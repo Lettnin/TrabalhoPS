@@ -1,0 +1,54 @@
+# Teste 5 - os modos de enderecamento que os testes 1 a 4 nao usam.
+# Cada caso carrega um valor em A e guarda num resultado (R1 a R6) para conferir no fim.
+# Os vetores comecam com 99: se o X nao for somado, aparece 99 no resultado.
+#   0000  LDX  #3             imediato                  X = 3
+#   0003  LDB  #BASE          imediato                  B = 0060
+#   0006  LDA  VAL1           modo SIC (n=0 i=0)        A = 11
+#   0009  STA  R1
+#   000C  LDA  VETA,X         modo SIC + indexado       A = VETA[X] = 22
+#   000F  STA  R2
+#   0012  LDA  VETB,X         relativo ao PC + indexado A = VETB[X] = 33
+#   0015  STA  R3
+#   0018  LDA  VETC,X         relativo a base + indexado A = VETC[X] = 44
+#   001B  STA  R4
+#   001E  LDA  #VAL1          imediato + relativo ao PC A = endereco de VAL1 = 40
+#   0021  STA  R5
+#   0024  +LDA @PTR1          formato 4 + indireto      A = mem[mem[PTR1]] = 55
+#   0028  STA  @PTR2          indireto na escrita       mem[R6] = 55
+#   002B  J    @PFIM          indireto no salto         PC = FIM
+#   002E  LDA  #0             (nao deve ser executado)
+#   0031  STA  R1             (nao deve ser executado)
+#   0034  FIM: CLEAR L
+#   0036       RSUB           L = 0 -> fim
+#   0040 VAL1 = 11   0043 VETA = 99,22   0049 VETB = 99,33   004F VAL5 = 55
+#   0052 PTR1 = 004F   0055 PTR2 = 0075   0058 PFIM = 0034
+#   0060 BASE/VETC = 99,44   0066 R1   0069 R2   006C R3   006F R4   0072 R5   0075 R6
+START 0000
+0000: 05 00 03
+0003: 69 00 60
+0006: 00 00 40
+0009: 0F 00 66
+000C: 00 80 43
+000F: 0F 00 69
+0012: 03 A0 34
+0015: 0F 00 6C
+0018: 03 C0 00
+001B: 0F 00 6F
+001E: 01 20 1F
+0021: 0F 00 72
+0024: 02 10 00 52
+0028: 0E 20 2A
+002B: 3E 20 2A
+002E: 01 00 00
+0031: 0F 00 66
+0034: B4 20
+0036: 4F 00 00
+0040: 00 00 11
+0043: 00 00 99 00 00 22
+0049: 00 00 99 00 00 33
+004F: 00 00 55
+0052: 00 00 4F
+0055: 00 00 75
+0058: 00 00 34
+0060: 00 00 99 00 00 44
+0066: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00

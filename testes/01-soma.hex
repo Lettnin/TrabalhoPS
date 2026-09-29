@@ -1,0 +1,10 @@
+# Teste 1 - a menor coisa que prova que a maquina funciona.
+#   LDA  #5        A = 5
+#   ADD  #3        A = 8
+#   STA  0100      memoria[0100] = 8
+#   RSUB           L = 0 -> fim do programa
+START 0000
+0000: 01 00 05
+0003: 19 00 03
+0006: 0F 01 00
+0009: 4F 00 00

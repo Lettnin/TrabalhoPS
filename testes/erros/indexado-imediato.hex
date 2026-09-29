@@ -1,0 +1,4 @@
+# Erro esperado: Indexacao (x) so pode ser usada no modo direto (endereco 000000).
+#   0000  LDA #0,X    o livro do Beck nao permite X junto com imediato ou indireto
+START 0000
+0000: 01 80 00

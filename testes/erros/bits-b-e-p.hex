@@ -1,0 +1,4 @@
+# Erro esperado: Bits b e p ligados ao mesmo tempo no endereco 000000.
+#   0000  LDA com b=1 e p=1   combinacao que o livro do Beck nao define
+START 0000
+0000: 03 60 00

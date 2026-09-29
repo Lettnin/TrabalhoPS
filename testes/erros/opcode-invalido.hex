@@ -1,0 +1,3 @@
+# Erro esperado: Opcode desconhecido: FF no endereco 000000
+START 0000
+0000: FF 00 00
