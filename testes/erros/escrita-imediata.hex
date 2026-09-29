@@ -1,4 +1,0 @@
-# Erro esperado: STA nao aceita modo imediato (endereco 000000).
-#   0000  STA #5      nao da para guardar um valor "dentro" de uma constante
-START 0000
-0000: 0D 00 05

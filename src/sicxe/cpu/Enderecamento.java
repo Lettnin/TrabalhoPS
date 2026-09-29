@@ -5,24 +5,20 @@ import sicxe.maquina.Memoria;
 import sicxe.maquina.Palavra;
 import sicxe.maquina.Registradores;
 
-// Modos de enderecamento do SIC/XE: descobre DE ONDE vem o operando.
-//
-// Toda instrucao de formato 3/4 diz "faca algo com m". A instrucao traz um
-// numero pequeno (disp) e os 6 bits n i x b p e, que dizem como chegar em m:
-//
-//   Passo 1 - montar o endereco alvo (TA), usando e, p e b:
-//     e = 1      -> TA = endereco de 20 bits (formato 4), sem conta nenhuma
-//     p = 1      -> TA = PC da PROXIMA instrucao + disp (disp COM sinal)
-//     b = 1      -> TA = registrador B + disp (disp SEM sinal)
-//     b = p = 0  -> TA = disp (so alcanca 0..4095)
-//
-//   Passo 2 - se x = 1, soma o registrador X (e assim que se percorre vetor).
-//
-//   Passo 3 - decidir o que fazer com o TA, usando n e i:
-//     n=1 i=1  DIRETO    o operando esta na memoria, no endereco TA
-//     n=1 i=0  INDIRETO  no endereco TA esta guardado o endereco do operando
-//     n=0 i=1  IMEDIATO  o proprio TA ja e o operando
-//     n=0 i=0  modo SIC  instrucao do SIC antigo: endereco direto de 15 bits
+/**
+ * O coracao conceitual do SIC/XE: descobrir DE ONDE vem o operando.
+ *
+ * Os 6 bits n i x b p e dizem como montar o "endereco alvo" (TA, target address):
+ *
+ *   e  -> 0: instrucao de 3 bytes (disp de 12 bits)   1: 4 bytes (endereco de 20 bits)
+ *   p  -> 1: o disp e um deslocamento COM SINAL somado ao PC da PROXIMA instrucao
+ *   b  -> 1: o disp e um deslocamento SEM SINAL somado ao registrador B
+ *   x  -> 1: soma ainda o registrador X (indexado)
+ *   n i-> 0 0: instrucao no padrao SIC antigo (endereco direto de 15 bits)
+ *         0 1: IMEDIATO  - o valor calculado JA E o operando
+ *         1 0: INDIRETO  - o valor calculado e o endereco de onde ler o endereco final
+ *         1 1: DIRETO    - o valor calculado e o endereco do operando
+ */
 public class Enderecamento {
 
     private final Memoria mem;
@@ -33,40 +29,37 @@ public class Enderecamento {
         this.regs = regs;
     }
 
-    // n=0 i=1: o valor calculado ja e o operando (ex.: LDA #5).
-    // O modo SIC (n=0 i=0) NAO e imediato: e direto.
     public boolean ehImediato(Instrucao ins) {
         return !ins.modoSIC && !ins.n && ins.i;
     }
 
-    // n=1 i=0: o valor calculado e o endereco onde esta guardado o endereco final.
     public boolean ehIndireto(Instrucao ins) {
         return !ins.modoSIC && ins.n && !ins.i;
     }
 
-    // Calcula o endereco alvo (TA). No modo imediato, o "alvo" e o proprio valor.
-    // A indirecao acontece aqui dentro, no fim: quem chama ja recebe o endereco final.
+    /**
+     * Calcula o endereco alvo (TA). No modo imediato, o "TA" e o proprio valor.
+     */
     public int calcularAlvo(Instrucao ins) {
-        validarCombinacao(ins);
-
         int alvo;
+
         if (ins.modoSIC) {
-            alvo = ins.disp;                                // 15 bits, direto
+            alvo = ins.disp;                            // 15 bits, direto
         } else if (ins.e) {
-            alvo = ins.disp;                                // formato 4: 20 bits, direto
+            alvo = ins.disp;                            // 20 bits, direto
         } else if (ins.p) {
-            // O PC usado e o da PROXIMA instrucao (endereco + tamanho) e o disp tem
-            // sinal, por isso um laco consegue saltar para tras.
+            // ATENCAO: o PC usado aqui e o da PROXIMA instrucao.
             alvo = ins.endereco + ins.tamanho + Palavra.sinal12(ins.disp);
         } else if (ins.b) {
-            alvo = regs.get(Registradores.B) + ins.disp;    // disp sem sinal
+            alvo = regs.get(Registradores.B) + ins.disp;  // disp sem sinal
         } else {
-            alvo = ins.disp;                                // direto, 12 bits
+            alvo = ins.disp;                            // direto, 12 bits
         }
 
         if (ins.x) {
             alvo += regs.get(Registradores.X);
         }
+
         alvo = Palavra.mascarar(alvo);
 
         if (ehIndireto(ins)) {
@@ -75,16 +68,16 @@ public class Enderecamento {
         return alvo;
     }
 
-    // Valor de 24 bits do operando (LDA, ADD, COMP, ...).
+    /** Valor de 24 bits do operando (usado por LDA, ADD, COMP, ...). */
     public int valorPalavra(Instrucao ins) {
         int alvo = calcularAlvo(ins);
         if (ehImediato(ins)) {
-            return alvo;
+            return Palavra.mascarar(alvo);
         }
         return mem.lerPalavra(alvo);
     }
 
-    // Valor de 1 byte do operando (LDCH).
+    /** Valor de 1 byte do operando (usado por LDCH). */
     public int valorByte(Instrucao ins) {
         int alvo = calcularAlvo(ins);
         if (ehImediato(ins)) {
@@ -93,28 +86,12 @@ public class Enderecamento {
         return mem.lerByte(alvo);
     }
 
-    // Endereco onde escrever ou para onde saltar (STA, STCH, J, JSUB, ...).
-    // Imediato nao faz sentido aqui: nao da para guardar algo "dentro" de uma constante.
+    /** Endereco de destino (usado por STA, STCH, J, JSUB, ...). */
     public int enderecoDestino(Instrucao ins) {
         if (ehImediato(ins)) {
             throw new ErroExecucao(ins.mnemonico + " nao aceita modo imediato (endereco "
                     + Palavra.hex(ins.endereco, 6) + ").");
         }
         return calcularAlvo(ins);
-    }
-
-    // Combinacoes de bits que o livro do Beck nao permite.
-    private void validarCombinacao(Instrucao ins) {
-        if (ins.modoSIC) {
-            return;
-        }
-        if (ins.b && ins.p) {
-            throw new ErroExecucao("Bits b e p ligados ao mesmo tempo no endereco "
-                    + Palavra.hex(ins.endereco, 6) + ".");
-        }
-        if (ins.x && !(ins.n && ins.i)) {
-            throw new ErroExecucao("Indexacao (x) so pode ser usada no modo direto (endereco "
-                    + Palavra.hex(ins.endereco, 6) + ").");
-        }
     }
 }

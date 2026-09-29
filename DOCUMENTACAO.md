@@ -14,7 +14,7 @@ Descobre de onde vem o operando das instruções de formato 3 e 4, usando os bit
 
 | Método | O que faz | Usado por |
 |---|---|---|
-| `calcularAlvo(ins)` | Calcula o endereço alvo (TA): formato 4, relativo ao PC, relativo à base, direto ou modo SIC. Soma X se a instrução for indexada e resolve a indireção. | os três métodos abaixo |
+| `calcularAlvo(ins)` | Calcula o endereço alvo (TA): modo SIC, formato 4, relativo ao PC, relativo à base ou direto. Soma X se a instrução for indexada e resolve a indireção. | os três métodos abaixo |
 | `valorPalavra(ins)` | Devolve o operando de 24 bits. No modo imediato, é o próprio TA. | `LDA`, `ADD`, `COMP`, `TIX`, ... |
 | `valorByte(ins)` | Devolve o operando de 1 byte. | `LDCH` |
 | `enderecoDestino(ins)` | Devolve o endereço onde escrever ou para onde saltar. Recusa o modo imediato. | `STA`, `STCH`, `J`, `JSUB`, ... |
@@ -28,7 +28,7 @@ Descobre de onde vem o operando das instruções de formato 3 e 4, usando os bit
 - **Relativo ao PC.** Usa `endereço da instrução + tamanho`, que é o PC da próxima instrução, e lê o deslocamento com sinal (12 bits em complemento de 2), o que permite saltar para trás. No relativo à base, o deslocamento é sem sinal.
 - **Indireção resolvida em um só lugar.** Ela acontece no fim de `calcularAlvo`, então quem chama sempre recebe o endereço final.
 - **Três métodos de acesso em vez de um**, porque as instruções precisam de coisas diferentes: o valor (`LDA`), um único byte (`LDCH`) ou o endereço (`STA`, `J`).
-- **Combinações inválidas param a execução com mensagem:** modo imediato em instrução que escreve ou salta (`STA #5`), indexação junto com imediato ou indireto, e bits `b` e `p` ligados ao mesmo tempo. As duas últimas seguem as regras do livro do Beck.
+- **Modo imediato em instrução que escreve ou salta** (`STA #5`, por exemplo) para a execução com mensagem, porque não existe endereço onde escrever.
 
 ## 4. Programas de teste e resultados esperados
 
@@ -44,9 +44,6 @@ java -cp bin sicxe.io.TesteConsole testes/<arquivo>.hex <enderecos em hexadecima
 | `02-laco.hex` | laço, indexação, formato 2, deslocamento negativo relativo ao PC | `002B` | A = X = `00000F`; mem[`00002B`] = `00000F` (1+2+3+4+5) | 26 |
 | `03-enderecamento.hex` | formato 4, relativo à base, relativo ao PC, indireto, sub-rotina | `1027 102A 1033` | `00000E` (14), `000063` (99), `000007` | 13 |
 | `04-bytes-e-sinal.hex` | deslocamento de bits, número negativo, comparação com sinal, byte, divisão | `0030 0036 0039` | `FFFFF1` (−15), byte `41` em `000036`, `00000E` (14) | 15 |
-| `05-modos-restantes.hex` | modo SIC (com e sem X), PC + X, base + X, imediato relativo ao PC, formato 4 indireto, escrita e salto indiretos | `0066 0069 006C 006F 0072 0075` | `000011`, `000022`, `000033`, `000044`, `000040`, `000055` | 17 |
-
-No teste 5, os vetores começam com `99`: se o X não for somado, o resultado mostra `000099` em vez do valor esperado. O `J @PFIM` pula duas instruções que zerariam `000066`, então esse endereço valendo `000011` prova que o salto indireto funcionou.
 
 ### Testes de erro (`testes/erros/`)
 
@@ -57,6 +54,3 @@ Em todos, o simulador deve parar com a mensagem e continuar aberto.
 | `opcode-invalido.hex` | `ERRO: Opcode desconhecido: FF no endereco 000000` |
 | `divisao-por-zero.hex` | `ERRO: Divisao por zero no endereco 000000.` |
 | `fora-da-memoria.hex` | `ERRO: Endereco fora da memoria: 008000` |
-| `escrita-imediata.hex` | `ERRO: STA nao aceita modo imediato (endereco 000000).` |
-| `indexado-imediato.hex` | `ERRO: Indexacao (x) so pode ser usada no modo direto (endereco 000000).` |
-| `bits-b-e-p.hex` | `ERRO: Bits b e p ligados ao mesmo tempo no endereco 000000.` |

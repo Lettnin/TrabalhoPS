@@ -1,4 +1,4 @@
-# Teste 3 - passa pelos modos de enderecamento principais e por sub-rotina.
+# Teste 3 - passa por todos os modos de enderecamento e por sub-rotina.
 #   1000  +LDB #TABELA     formato 4 + imediato      B = 1033
 #   1004  LDA  #7          imediato                  A = 7
 #   1007  STA  TABELA      base-relativo (b=1)       mem[1033] = 7
@@ -12,7 +12,7 @@
 #   101F  RSUB             L = 0 -> fim
 #   1022  DOBRA: ADDR A,A  A = A + A
 #   1024         RSUB      volta para L
-#   1027 RESULT   102A FINAL   102D PONTEIRO = 1030   1030 VALOR = 99   1033 TABELA
+#   1027  RESULT   1030 VALOR = 99   102D PONTEIRO = 1030   1033 TABELA
 START 1000
 1000: 69 10 10 33
 1004: 01 00 07
