@@ -26,7 +26,7 @@ public class Decodificador {
             return ins;
         }
 
-        int opcode = b0 & 0xFC;          // zera os bits n e i
+        int opcode = b0 & 0xFC;          
         String nome = TabelaOpcodes.FORMATO_34.get(opcode);
         if (nome == null) {
             throw new ErroExecucao("Opcode desconhecido: " + Palavra.hex(b0, 2)
