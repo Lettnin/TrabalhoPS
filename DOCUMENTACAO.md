@@ -80,6 +80,21 @@ Descobre de onde vem o operando das instruções de formato 3 e 4, usando os bit
 | `enderecoDestino(ins)` | Devolve o endereço onde escrever ou para onde saltar. Recusa o modo imediato. | `STA`, `STCH`, `J`, `JSUB`, ... |
 | `ehImediato(ins)`, `ehIndireto(ins)` | Identificam o modo pelos bits `n` e `i`. | uso interno |
 
+### `InstrucoesMemoria` (pacote `sicxe.cpu`)
+
+Executa as 22 instruções de carga, armazenamento, aritmética, lógica, `COMP`
+e `TIX`, delegando os modos de endereçamento a `Enderecamento`. O método
+`executar(ins)` retorna `Resultado.CONTINUA` para essas instruções e
+`Resultado.NAO_TRATADA` para os demais opcodes, permitindo que a CPU tente
+`InstrucoesRegistrador`.
+
+A aritmética usa complemento de 2 com `Palavra.paraSinalizado`, e
+`Registradores.set` mantém os resultados em 24 bits. `LDCH` preserva os
+16 bits superiores de A; `STCH` grava apenas seu byte inferior. `COMP` e
+`TIX` usam `Registradores.comparar`, com o incremento de X antes da
+comparação em `TIX`. Divisão por zero gera `ErroExecucao` com o endereço
+da instrução.
+
 ## 3. Estratégias adotadas
 
 ### Memória e registradores
