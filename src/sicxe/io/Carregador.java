@@ -57,6 +57,12 @@ public class Carregador {
                         achouExecucao = true;
                     }
                     achouRegistro = true;
+                } else if (tipo == 'M') {
+                    // Registro de modificacao, gerado pelo montador (Etapa 2).
+                    // Na carga absoluta o programa vai para o endereco do H,
+                    // entao nenhum endereco precisa ser corrigido. Quem vai
+                    // usar este registro e o carregador relocador (Etapa 5).
+                    achouRegistro = true;
                 } else if (linha.toUpperCase().startsWith("START")) {
                     res.enderecoExecucao = Integer.parseInt(linha.substring(5).trim(), 16);
                     achouExecucao = true;
