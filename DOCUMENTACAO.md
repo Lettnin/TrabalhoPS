@@ -95,6 +95,39 @@ A aritmética usa complemento de 2 com `Palavra.paraSinalizado`, e
 comparação em `TIX`. Divisão por zero gera `ErroExecucao` com o endereço
 da instrução.
 
+### Interface gráfica (pacote `sicxe.gui`)
+
+Feita em Swing. Nenhuma outra classe depende dela: a interface só lê o estado
+da `Memoria`, dos `Registradores` e da `CPU` e manda a CPU dar passos.
+
+**JanelaPrincipal** — monta a tela: barra de botões no topo, memória à
+esquerda, registradores e histórico à direita, e no rodapé a última instrução
+executada e a barra de status.
+
+| Método | O que faz |
+|---|---|
+| `JanelaPrincipal(mem, regs, cpu)` | Recebe as peças já criadas pelo `Main` e monta os painéis. |
+| `carregarArquivo(arquivo)` | Usa o `Carregador` para pôr o programa na memória e prepara a CPU no endereço de execução. |
+| `executarPasso()` | Um passo da CPU, usado pelo botão **Passo** e pelo `Timer` do **Rodar**. Registra a instrução no histórico. |
+| `reset()` | Recarrega o último arquivo, voltando memória e registradores ao estado inicial. |
+| `atualizarTela()` | Redesenha os painéis, o rodapé e habilita ou desabilita os botões conforme a CPU está parada. |
+
+**PainelMemoria** — `JTable` com 16 bytes por linha, coluna de endereço e
+coluna ASCII.
+
+| Método | O que faz |
+|---|---|
+| `atualizar()` | Redesenha a tabela e rola até a linha do PC. |
+| `irPara(endereco)` | Rola a tabela para deixar o endereço no meio da tela. |
+
+**PainelRegistradores** — `JTable` com cada registrador em hexadecimal e em
+decimal com sinal; no SW mostra também o CC (`=`, `<`, `>`).
+
+| Método | O que faz |
+|---|---|
+| `guardarEstado()` | Tira um retrato dos valores atuais; o que mudar depois disso fica verde. |
+| `atualizar()` | Redesenha a tabela. |
+
 ## 3. Estratégias adotadas
 
 ### Memória e registradores
@@ -132,6 +165,16 @@ Java.
 - **Indireção resolvida em um só lugar.** Ela acontece no fim de `calcularAlvo`, então quem chama sempre recebe o endereço final.
 - **Três métodos de acesso em vez de um**, porque as instruções precisam de coisas diferentes: o valor (`LDA`), um único byte (`LDCH`) ou o endereço (`STA`, `J`).
 - **Modo imediato em instrução que escreve ou salta** (`STA #5`, por exemplo) para a execução com mensagem, porque não existe endereço onde escrever.
+
+### Interface gráfica
+
+- **Swing e não JavaFX.** O Swing já vem no Java; o JavaFX precisaria ser instalado e configurado à parte em cada máquina.
+- **Execução animada com `javax.swing.Timer`, não com `while`.** O Swing desenha a tela na mesma thread que trata os cliques; um `while` congelaria a janela até o fim do programa. O `Timer` dá um passo a cada X ms (ajustável no controle deslizante) e a tela se redesenha entre um passo e outro.
+- **A tabela lê direto da `Memoria`.** O modelo da `JTable` não copia os dados para um vetor à parte, então a tela nunca mostra informação velha.
+- **Destaques.** Amarelo no byte apontado pelo PC; verde nos bytes escritos pela última instrução (`Memoria.foiEscritoRecentemente`) e nos registradores que ela alterou. Assim cada passo mostra exatamente o que mudou.
+- **Rolagem automática até o PC**, para não perder a execução de vista nos 32 KB de memória. Só rola quando o PC sai da área visível, para a tabela não ficar pulando a cada passo.
+- **Carga segura.** O arquivo é carregado antes numa memória de rascunho: se tiver erro, a mensagem aparece e a memória de verdade não fica com o programa pela metade.
+- **Erros não fecham o simulador.** A mensagem da CPU aparece em vermelho na barra de status e no histórico, e os botões **Passo** e **Rodar** ficam desabilitados até carregar ou dar reset.
 
 ## 4. Programas de teste e resultados esperados
 

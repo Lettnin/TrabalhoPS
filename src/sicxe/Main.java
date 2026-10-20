@@ -18,6 +18,7 @@ public class Main {
             Memoria memoria = new Memoria(Memoria.TAMANHO_PADRAO);
             Registradores registradores = new Registradores();
             CPU cpu = new CPU(memoria, registradores);
+            new JanelaPrincipal(memoria, registradores, cpu).setVisible(true);
         });
     }
 }
