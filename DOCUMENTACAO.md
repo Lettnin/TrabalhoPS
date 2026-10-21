@@ -203,6 +203,12 @@ Em todos, o simulador deve parar com a mensagem e continuar aberto.
 
 ## 5. Etapa 2 — Tabela de símbolos e expressões (Pedro, parte D)
 
+Esta parte segue os slides de Montagem do professor (tabela de símbolos e passos
+do montador) e o capítulo 2 do Beck (seção 2.1, tabela de símbolos, e seção
+2.3.3, expressões). A implementação parte de uma versão de referência do grupo,
+montada a partir desse material; a única diferença funcional está em "Extensão
+autorizada — multiplicação e divisão".
+
 ### Estruturas de dados
 
 **TabelaSimbolos** guarda um `Map<String, Simbolo>` inicializado com
@@ -263,9 +269,9 @@ juntos quando o programa muda de lugar, mantendo a distância entre eles.
 Com valores 45 e 30, essa distância é 15.
 
 **Extensão autorizada — multiplicação e divisão.** Esta é a única diferença
-funcional autorizada em relação ao guia e ao ZIP. Os contratos públicos e
-os comportamentos originais são preservados; o avaliador não é idêntico
-ao código de referência. As operações `*` e `/` são resolvidas antes de
+funcional autorizada em relação à versão de referência do grupo. Os
+contratos públicos e os comportamentos originais são preservados; o
+avaliador não é idêntico ao da versão de referência. As operações `*` e `/` são resolvidas antes de
 `+` e `-`, e operadores de mesma precedência são avaliados da esquerda
 para a direita: `2+3*4 = 14`, `20/5*2 = 8` e `8/3*3 = 6`.
 A divisão usa inteiros Java e trunca em direção a zero:
@@ -311,7 +317,7 @@ repositório, sem dependências externas e sem alterar testes oficiais.
 Foram aprovadas 5.131 verificações: contratos públicos, campos, ordem e
 independência da lista de símbolos, erros de duplicação e de consulta,
 casos originais e novos operadores. Dessas verificações, 5.000 comparam
-valor, tipo ou mensagem de erro com o avaliador original do guia, usando
+valor, tipo ou mensagem de erro com o avaliador da versão de referência, usando
 expressões de soma e subtração geradas com semente fixa.
 
 A extensão foi verificada quanto à precedência, associatividade,
@@ -328,3 +334,135 @@ fonte temporário com `TAM EQU 2+3*4` não puderam ser executados pelo fluxo
 real. Faltam os testes oficiais e implementações dos consumidores,
 incluindo as passagens, o analisador, o codificador e a montagem; também
 falta `MontadorConsole`. A validação de integração permanece pendente.
+
+## 6. Etapa 2 — Diretivas, constantes e listagem (Samuel, parte A)
+
+Esta parte segue o capítulo 2 do Beck e os slides de Montagem do professor. A
+implementação parte de uma versão de referência do grupo, montada a partir
+desse material; as diferenças em relação a ela estão indicadas nas estratégias
+abaixo.
+
+### Estruturas de dados
+
+**ErroMontagem** é uma exceção (`RuntimeException`) lançada por quem detecta
+um erro de montagem: símbolo indefinido, constante mal escrita, deslocamento
+que não cabe. Quem lança não sabe em que linha está. As passagens capturam o
+erro, guardam a mensagem em `Linha.erro` e seguem para a linha seguinte, de
+modo que o montador mostra todos os erros de uma vez.
+
+**Diretivas** guarda a tabela de pseudo-instruções (a POT dos slides):
+`NOMES` é um `HashSet<String>` com as dez diretivas reconhecidas. Duas
+constantes completam a classe: `TAMANHO_WORD` (3 bytes) e `MEMORIA_MAXIMA`
+(`0x100000`, 1 MB). `Diretivas` é uma classe final, com construtor privado e
+métodos estáticos.
+
+| Diretiva | Para que serve |
+|---|---|
+| `START n` | endereço inicial do programa, em hexadecimal |
+| `END r` | fim do fonte; `r` é onde a execução começa |
+| `BYTE c` | constante de bytes: `C'ABC'` ou `X'F1'` |
+| `WORD n` | constante de uma palavra (3 bytes), com sinal |
+| `RESB n` / `RESW n` | reserva `n` bytes / `n` palavras |
+| `EQU e` | dá ao rótulo o valor de uma expressão |
+| `ORG e` | muda o contador de posição; sem operando, volta ao anterior |
+| `BASE e` / `NOBASE` | liga e desliga o endereçamento relativo à base |
+
+**Listagem** não guarda dados: monta o texto a partir da lista de `Linha` e da
+`TabelaSimbolos` que recebe. É uma classe final, com construtor privado e um
+método estático.
+
+### Funções desenvolvidas
+
+| Classe | Método ou construtor | Responsabilidade |
+|---|---|---|
+| `ErroMontagem` | `ErroMontagem(String mensagem)` | Cria o erro com a mensagem que vai para a linha do fonte e para a lista de erros. |
+| `Diretivas` | `ehDiretiva(String operacao)` | Diz se a operação é uma das dez diretivas. Diferencia maiúsculas de minúsculas: a `Linha` guarda a operação em maiúsculas. |
+| `Diretivas` | `tamanhoByte(String operando)` | Quantos bytes a constante de um `BYTE` ocupa; usado pela passagem 1. |
+| `Diretivas` | `bytesDeByte(String operando)` | `C'EOF'` vira `45 4F 46` (código ASCII de cada caractere); `X'F1'` vira `F1` (um byte a cada dois dígitos). Lança `ErroMontagem` se a constante for inválida. |
+| `Diretivas` | `bytesDeWord(int valor)` | Três bytes, o mais significativo primeiro; negativo vira complemento de 2 (`-15` vira `FF FF F1`). Aceita de −8388608 a 16777215. |
+| `Diretivas` | `tamanhoReserva(String operacao, int quantidade)` | `RESB n` ocupa `n` bytes e `RESW n` ocupa `3n`. Recusa quantidade negativa e reserva acima de 1 MB. |
+| `Listagem` | `gerar(List<Linha> linhas, TabelaSimbolos simbolos)` | Devolve o texto da listagem: o fonte com endereço e código objeto, os erros e a tabela de símbolos. |
+
+### Estratégias adotadas
+
+**A1 — Diretivas.** Uma diretiva não vira instrução de máquina: é uma ordem ao
+montador. Na passagem 1 ela só mexe no contador de posição (soma o tamanho;
+`START` e `ORG` trocam o valor); na passagem 2, só `BYTE` e `WORD` geram bytes.
+O operando do `START` é hexadecimal e os demais números são decimais, como no
+Beck: `START 1000` é o endereço 1000 em hexadecimal, e `RESB 2048` reserva
+2048 bytes.
+
+**A2 — Constantes `BYTE`.** `C'...'` vira o código ASCII de cada caractere, e só
+são aceitos caracteres ASCII, sem acento. `X'...'` vira um byte a cada dois
+dígitos hexadecimais; número ímpar de dígitos ou dígito inválido é erro. As
+mensagens são `constante invalida no BYTE: use C'texto' ou X'hexadecimal'`,
+`use so caracteres sem acento em C'...'`,
+`X'...' precisa de um numero par de digitos hexadecimais` e
+`digito hexadecimal invalido no BYTE: ...`. `bytesDeByte` espera o tipo (`C` ou
+`X`) em maiúscula; aceitar o tipo em minúscula é responsabilidade do analisador
+de linha.
+
+**A3 — `WORD` e reservas.** `bytesDeWord` reaproveita a `Palavra.mascarar` da
+Etapa 1, que descarta os bits acima de 24 e produz o complemento de 2: `WORD -1`
+vira `FF FF FF`. Valores fora de −8388608 a 16777215 não cabem em 24 bits e
+lançam `valor nao cabe em 24 bits: ...`. `RESB` e `RESW` não geram bytes no
+programa objeto: o contador de posição pula, e um novo registro T começa depois
+da reserva.
+
+**Diferença em relação à versão de referência do grupo — limite nas reservas.**
+Esta é a única diferença funcional da parte A em relação à versão de referência.
+`tamanhoReserva` faz a conta de `RESW n` em `long` e recusa reservas acima de
+1 MB (`0x100000`), a memória máxima do SIC/XE (Beck, seção 1.3.2). Na versão de
+referência, `3 × n` em `int` estoura para `n` grande: `RESW 715827883` dava
+tamanho negativo, e o montador gerava um programa objeto errado sem avisar. A
+interface pública não mudou. A mensagem nova é
+`reserva grande demais no RESW: ... (o SIC/XE enderece no maximo 1 MB)`.
+
+**A4 — Listagem.** É a "linguagem de máquina anotada" dos slides: uma linha de
+texto para cada linha do fonte, com o número, o endereço (seis dígitos
+hexadecimais, em branco quando a linha não tem endereço, como comentário e linha
+vazia), o código objeto e o texto original. No `EQU`, a coluna de endereço mostra
+o valor do símbolo, como no Beck, e não o endereço da linha. O erro aparece logo
+abaixo da linha que o causou, com `*** ERRO:`. No fim vem a tabela de símbolos,
+com nome, valor e tipo (relativo ou absoluto), na ordem de definição.
+
+**Fora do escopo desta entrega.** A tabela de referências cruzadas citada no
+slide de listagem e os literais (`=C'EOF'`, `LTORG`) não foram implementados: a
+listagem traz só a tabela de símbolos, e as constantes são definidas com `BYTE`
+ou `WORD` e um rótulo, o que gera o mesmo código objeto (Beck, p. 69). Se os
+literais forem acrescentados, a `Diretivas` ganharia o `LTORG`, e a tradução da
+constante reaproveitaria o `bytesDeByte`.
+
+### Demonstração da parte A
+
+No teste 5, mostrar como as constantes viram bytes: `C'SIC/XE NA UFPEL'` vira os
+15 códigos ASCII, `X'F0F0F0'` vira os próprios bytes e `WORD -1` vira `FFFFFF`.
+Mostrar também `DESTINO RESB TAM` e a listagem, em que o `EQU` exibe o valor do
+símbolo (`TAM` vale 15). Para os erros, mostrar `X'F1F'` (número ímpar de
+dígitos) e um `RESW` grande demais. Essas demonstrações dependem da conclusão
+das demais peças do montador.
+
+### Validação da parte A (21/10/2026)
+
+Os testes foram criados e executados em diretório temporário fora do
+repositório, sem alterar testes oficiais. Foram aprovadas 58 verificações
+diretas: as dez diretivas; `bytesDeByte` com constantes em caracteres e em
+hexadecimal e com os erros de dígitos ímpares, dígito inválido, acento,
+constante vazia ou sem aspas e tipo desconhecido; `bytesDeWord` nos limites de
+24 bits (`7FFFFF`, `800000`, `FFFFFF`, `FFFFF1` para −15, erro em 16777216 e em
+−8388609); `tamanhoReserva` nos limites de 1 MB e no estouro de `int`; e a
+`Listagem` com linhas montadas à mão (comentário sem endereço, `EQU` com o valor
+do símbolo, erro abaixo da linha e tabela de símbolos).
+
+Com o restante do código de referência do grupo, que ainda não está no
+repositório, a `Diretivas` com o limite de 1 MB gerou programas objeto idênticos
+aos de referência nos cinco testes oficiais, e a `Listagem` reproduziu as cinco
+listagens de referência. Em 46 programas de borda, o resultado foi o mesmo da
+`Diretivas` de referência em todos, exceto o `RESW` gigante, que agora dá erro.
+
+A compilação integral dos 31 fontes atuais passou com
+`javac --release 17 -encoding UTF-8` (JDK 25.0.4.1), com os `.class` fora do
+repositório. Isso verifica a compilação do estado existente, mas não certifica a
+integração do montador, porque as passagens, o analisador, o codificador e a
+montagem ainda são esqueleto no repositório. A validação de integração
+permanece pendente.
