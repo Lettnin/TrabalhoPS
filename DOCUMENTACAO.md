@@ -200,3 +200,131 @@ Em todos, o simulador deve parar com a mensagem e continuar aberto.
 | `opcode-invalido.hex` | `ERRO: Opcode desconhecido: FF no endereco 000000` |
 | `divisao-por-zero.hex` | `ERRO: Divisao por zero no endereco 000000.` |
 | `fora-da-memoria.hex` | `ERRO: Endereco fora da memoria: 008000` |
+
+## 5. Etapa 2 — Tabela de símbolos e expressões (Pedro, parte D)
+
+### Estruturas de dados
+
+**TabelaSimbolos** guarda um `Map<String, Simbolo>` inicializado com
+`LinkedHashMap<>`. A consulta é feita pelo nome, e a iteração preserva a
+ordem de definição dos símbolos, usada pela listagem e pela interface.
+Não há validação de nomes nem conversão de maiúsculas/minúsculas aqui:
+essa preparação pertence ao analisador.
+
+**TabelaSimbolos.Simbolo** é uma classe interna pública e estática. Seus
+quatro campos são públicos e finais: `String nome`, `int valor`,
+`boolean relativo` e `int linha` (linha da definição no fonte).
+
+**Expressao.Valor** é uma classe interna pública e estática com os campos
+públicos e finais `int valor` e `boolean relativo`. O valor absoluto
+independe do endereço de carga; o relativo representa um endereço que
+acompanha o programa na relocação. `Expressao` é uma classe final, com
+construtor privado e avaliação por método estático.
+
+### Funções desenvolvidas
+
+| Classe | Método ou construtor | Responsabilidade |
+|---|---|---|
+| `TabelaSimbolos.Simbolo` | `Simbolo(String nome, int valor, boolean relativo, int linha)` | Guarda os quatro dados da definição. |
+| `TabelaSimbolos` | `definir(String nome, int valor, boolean relativo, int linha)` | Insere um símbolo; rejeita duplicados sem substituir a definição anterior. |
+| `TabelaSimbolos` | `contem(String nome)` | Consulta a existência do nome. |
+| `TabelaSimbolos` | `buscar(String nome)` | Retorna o símbolo ou lança erro de símbolo indefinido. |
+| `TabelaSimbolos` | `todos()` | Retorna uma nova `ArrayList<Simbolo>` na ordem de definição; alterar essa lista não altera a tabela. |
+| `Expressao.Valor` | `Valor(int valor, boolean relativo)` | Guarda o resultado numérico e seu tipo. |
+| `Expressao` | `avaliar(String texto, TabelaSimbolos simbolos, int lc)` | Avalia a expressão e retorna seu valor e tipo; lança `ErroMontagem` em caso de erro. |
+| `Expressao` | `produto(...)` (privado) | Resolve multiplicações e divisões de cada trecho, da esquerda para a direita. |
+| `Expressao` | `termo(...)` (privado) | Interpreta um número decimal, consulta um símbolo ou retorna o LC para `*`. |
+
+### Estratégias adotadas
+
+**D1 — Tabela de símbolos.** A passagem 1 define os rótulos; a passagem 2
+consulta a tabela completa para resolver referências futuras de instruções.
+Uma nova definição de um nome existente lança
+`simbolo duplicado: NOME (ja definido na linha N)`, mantendo o símbolo
+original. Uma consulta sem definição lança `simbolo indefinido: NOME`.
+Esse segundo erro também pode ocorrer na passagem 1: `EQU`, reservas e
+`ORG` precisam de valores naquele momento e só podem usar símbolos já
+definidos. Não há resolução adiada nessas diretivas.
+
+**D2 — Avaliação de expressões.** São aceitos números decimais, símbolos,
+soma, subtração, sinal inicial opcional e `*` como LC recebido pelo
+avaliador. Por exemplo, `FIMORIG EQU *` define o endereço logo depois do
+texto no teste 5. Não são acrescentados parênteses, números hexadecimais,
+frações, literais, tratamento de espaços ou normalização. `START` em
+hexadecimal pertence à passagem 1; o analisador separa `#`, `@` e `,X`.
+
+**D3 — Tipo absoluto ou relativo.** Cada termo relativo somado contribui
+com +1, e cada termo relativo subtraído contribui com −1. Somente o saldo
+final é validado: 0 indica absoluto; 1, relativo; outro valor lança
+`expressao sem sentido: ... (so da para somar um endereco do programa)`.
+Assim, `FIM+INICIO-INICIO` permanece válido mesmo com saldo intermediário
+igual a 2. `FIMORIG-ORIGEM` é absoluto porque os dois endereços se deslocam
+juntos quando o programa muda de lugar, mantendo a distância entre eles.
+Com valores 45 e 30, essa distância é 15.
+
+**Extensão autorizada — multiplicação e divisão.** Esta é a única diferença
+funcional autorizada em relação ao guia e ao ZIP. Os contratos públicos e
+os comportamentos originais são preservados; o avaliador não é idêntico
+ao código de referência. As operações `*` e `/` são resolvidas antes de
+`+` e `-`, e operadores de mesma precedência são avaliados da esquerda
+para a direita: `2+3*4 = 14`, `20/5*2 = 8` e `8/3*3 = 6`.
+A divisão usa inteiros Java e trunca em direção a zero:
+`15/2 = 7` e `-15/2 = -7`. O sinal opcional continua restrito ao início;
+sequências como `2++3`, `2*/3` e `2*-3` são rejeitadas.
+
+Multiplicação e divisão exigem dois operandos absolutos e produzem um
+resultado absoluto. Isso mantém o modelo de tipo por saldo relativo,
+sem introduzir regras adicionais de relocação. Um símbolo absoluto como
+`TAM` pode participar de `TAM*2` ou `TAM/2`. Um símbolo relativo não pode,
+nem em `TABELA*0` ou `TABELA/1`. As mensagens são
+`multiplicacao com valor relativo na expressao: ...` e
+`divisao com valor relativo na expressao: ...`.
+Divisão de absolutos por zero lança
+`divisao por zero na expressao: ...`, sem deixar escapar `ArithmeticException`.
+
+O contexto distingue os dois usos de `*`: ao esperar um termo, ele é o LC
+relativo; após um termo completo, é multiplicação. Portanto, `*+3` e
+`FIM-*` usam o LC, `3*4` multiplica, e `*/2` é rejeitado por envolver um
+valor relativo. `EQU *` mantém seu significado original.
+
+**Integração e erros.** As classes da parte D lançam `ErroMontagem` sem
+imprimir, alterar `Linha.erro` ou acrescentar `linha N:`. As passagens
+capturam o erro e o associam à linha. O valor e o tipo são entregues aos
+consumidores pela mesma API; a parte D não calcula bits `nixbpe` nem gera
+registros M. Foram mantidas as mensagens originais de operando ausente,
+expressão incompleta, número inválido e símbolo indefinido.
+
+### Demonstração da parte D
+
+No teste 2, mostrar a tabela na ordem de definição e explicar como
+`STA SOMA` pode usar um rótulo definido mais adiante: a consulta ocorre
+com a tabela pronta na passagem 2. No teste 5, mostrar
+`FIMORIG EQU *`, `TAM EQU FIMORIG-ORIGEM` e o resultado absoluto 15.
+Para a extensão, demonstrar `2+3*4`, `15/2` e a rejeição de um endereço
+relativo em multiplicação ou divisão. Essas demonstrações dependem da
+conclusão das demais peças do montador.
+
+### Validação da parte D (21/10/2026)
+
+Os testes foram criados e executados em diretório temporário fora do
+repositório, sem dependências externas e sem alterar testes oficiais.
+Foram aprovadas 5.131 verificações: contratos públicos, campos, ordem e
+independência da lista de símbolos, erros de duplicação e de consulta,
+casos originais e novos operadores. Dessas verificações, 5.000 comparam
+valor, tipo ou mensagem de erro com o avaliador original do guia, usando
+expressões de soma e subtração geradas com semente fixa.
+
+A extensão foi verificada quanto à precedência, associatividade,
+divisão inteira positiva e negativa, divisão por zero, uso de símbolos
+absolutos, rejeição de relativos, distinção do LC e rejeição de sequências
+incompletas ou inválidas. Também foram conferidos saldo relativo somente
+ao final, ausência de normalização e mensagens originais.
+
+A compilação integral dos 31 fontes atuais passou com JDK 25.0.2 e
+`javac --release 17 -encoding UTF-8`, com os `.class` fora do repositório.
+Isso verifica a compilação do estado existente, mas não certifica a
+integração do montador: os testes 2, 5, os erros oficiais de símbolos e o
+fonte temporário com `TAM EQU 2+3*4` não puderam ser executados pelo fluxo
+real. Faltam os testes oficiais e implementações dos consumidores,
+incluindo as passagens, o analisador, o codificador e a montagem; também
+falta `MontadorConsole`. A validação de integração permanece pendente.
