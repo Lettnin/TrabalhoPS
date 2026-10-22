@@ -58,6 +58,7 @@ public class JanelaPrincipal extends JFrame {
     private final Timer relogio;
 
     private File ultimoArquivo;   // usado pelo Reset para recarregar o programa
+    private JanelaMontador janelaMontador;   // criada no primeiro clique em "Montador"
 
     public JanelaPrincipal(Memoria mem, Registradores regs, CPU cpu) {
         super("Simulador SIC/XE - Programacao de Sistemas - UFPel");
@@ -84,6 +85,7 @@ public class JanelaPrincipal extends JFrame {
 
         JButton botaoCarregar = new JButton("Carregar programa");
         JButton botaoReset = new JButton("Reset");
+        JButton botaoMontador = new JButton("Montador");
 
         botaoCarregar.addActionListener(e -> escolherArquivo());
         botaoPasso.addActionListener(e -> {
@@ -100,6 +102,7 @@ public class JanelaPrincipal extends JFrame {
             }
         });
         botaoReset.addActionListener(e -> reset());
+        botaoMontador.addActionListener(e -> abrirMontador());
         velocidade.addChangeListener(e -> relogio.setDelay(velocidade.getValue()));
 
         JPanel barra = new JPanel();
@@ -107,6 +110,7 @@ public class JanelaPrincipal extends JFrame {
         barra.add(botaoPasso);
         barra.add(botaoRodar);
         barra.add(botaoReset);
+        barra.add(botaoMontador);
         barra.add(Box.createHorizontalStrut(20));
         barra.add(new JLabel("Intervalo (ms):"));
         velocidade.setPreferredSize(new Dimension(160, 30));
@@ -199,6 +203,14 @@ public class JanelaPrincipal extends JFrame {
             JOptionPane.showMessageDialog(this, e.getMessage(), "Erro ao carregar",
                     JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void abrirMontador() {
+        if (janelaMontador == null) {
+            janelaMontador = new JanelaMontador(this);
+        }
+        janelaMontador.setVisible(true);
+        janelaMontador.toFront();
     }
 
     // Recarrega o ultimo arquivo, para a memoria voltar ao estado original.
