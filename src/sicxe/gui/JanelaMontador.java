@@ -16,6 +16,8 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 
 import sicxe.montador.Montador;
@@ -30,6 +32,7 @@ public class JanelaMontador extends JFrame {
     private final JanelaPrincipal simulador;
 
     private final JTextArea editor = new JTextArea();
+    private final JTextArea numerosDasLinhas = new JTextArea("  1 ");
     private final JTextArea listagem = new JTextArea();
     private final JTextArea programaObjeto = new JTextArea();
     private final JTextArea mensagens = new JTextArea(4, 40);
@@ -51,12 +54,21 @@ public class JanelaMontador extends JFrame {
         setLocationRelativeTo(null);
 
         Font mono = new Font(Font.MONOSPACED, Font.PLAIN, 13);
-        for (JTextArea area : new JTextArea[] { editor, listagem, programaObjeto, mensagens }) {
+        for (JTextArea area : new JTextArea[] { editor, numerosDasLinhas, listagem, programaObjeto, mensagens }) {
             area.setFont(mono);
         }
+        numerosDasLinhas.setEditable(false);
+        numerosDasLinhas.setBackground(new Color(235, 235, 235));
         listagem.setEditable(false);
         programaObjeto.setEditable(false);
         mensagens.setEditable(false);
+
+        // Qualquer mudanca no fonte refaz os numeros das linhas.
+        editor.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { fonteMudou(); }
+            public void removeUpdate(DocumentEvent e) { fonteMudou(); }
+            public void changedUpdate(DocumentEvent e) { fonteMudou(); }
+        });
 
         JButton botaoAbrir = new JButton("Abrir .asm");
         JButton botaoSalvar = new JButton("Salvar");
@@ -68,6 +80,7 @@ public class JanelaMontador extends JFrame {
         barra.add(botaoSalvar);
 
         JScrollPane rolagemEditor = new JScrollPane(editor);
+        rolagemEditor.setRowHeaderView(numerosDasLinhas);
         rolagemEditor.setBorder(BorderFactory.createTitledBorder("Fonte"));
 
         JTable tabelaSimbolos = new JTable(modeloSimbolos);
@@ -123,6 +136,14 @@ public class JanelaMontador extends JFrame {
         } catch (IOException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Erro ao salvar", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void fonteMudou() {
+        StringBuilder sb = new StringBuilder();
+        for (int k = 1; k <= editor.getLineCount(); k++) {
+            sb.append(String.format("%3d ", k)).append('\n');
+        }
+        numerosDasLinhas.setText(sb.toString());
     }
 
     private void mostrarMensagem(String texto, Color cor) {
