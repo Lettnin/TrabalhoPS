@@ -540,3 +540,101 @@ No `fora-do-alcance.asm`, trocar `LDA LONGE` por `+LDA LONGE` faz a montagem pas
 ### Validação da parte C (22/10/2026)
 
 O analisador, a passagem 1, a tabela de instruções e o `MontadorConsole` ainda não estão no repositório. Por isso, a validação usou uma cópia fora do repositório: o código de referência do grupo por baixo e, por cima, todos os arquivos já enviados, inclusive o limite das reservas (parte A) e a multiplicação e divisão (parte D). Os cinco programas objeto e as cinco listagens saíram idênticos aos de referência; no `TesteConsole`, os cinco programas deram os valores da tabela acima; e os quatro testes de erro deram as mensagens esperadas, sem gerar `.obj`. A validação pelo fluxo real fica para quando as peças que faltam forem enviadas.
+
+## 8. Etapa 2 — Janela do montador (Arthur Gausmann, parte G)
+
+A `JanelaMontador` é a parte que o professor vê: abre um `.asm`, monta, mostra
+o resultado e manda o programa para o simulador da Etapa 1. O código é o da
+versão de referência do grupo, sem mudanças.
+
+### Estruturas de dados
+
+A janela não tem estrutura própria: só guarda o que precisa para a tela.
+
+| Campo | Tipo | Para que serve |
+|---|---|---|
+| `simulador` | `JanelaPrincipal` | a janela da Etapa 1, que recebe o programa montado |
+| `montador` | `Montador` | o montador da parte F, chamado a cada clique em **Montar** |
+| `editor`, `numerosDasLinhas` | `JTextArea` | o fonte, editável, e a coluna com o número de cada linha |
+| `listagem`, `programaObjeto`, `mensagens` | `JTextArea` | só leitura: o resultado da montagem e os erros ou o resumo |
+| `modeloSimbolos` | `DefaultTableModel` | as linhas da tabela de símbolos: nome, valor, tipo e linha |
+| `arquivoFonte` | `File` | o `.asm` aberto ou salvo; `null` enquanto não há nenhum |
+| `resultado` | `Montador.Resultado` | a última montagem, usada pelo **Carregar no simulador** |
+
+Na `JanelaPrincipal`, o único campo novo é `janelaMontador`, criado no primeiro
+clique em **Montador**.
+
+### Funções desenvolvidas
+
+**JanelaMontador**
+
+| Método | O que faz |
+|---|---|
+| `JanelaMontador(simulador)` | Recebe a janela do simulador e monta a tela: botões em cima, fonte à esquerda, abas Listagem / Tabela de símbolos / Programa objeto à direita e mensagens embaixo. |
+| `abrir()` | Escolhe um `.asm` (começa em `testes/montador`) e põe o texto no editor com `Montador.lerLinhas`. |
+| `salvar()` | Grava o editor no arquivo aberto com `Montador.gravar`; se nenhum foi aberto, pergunta onde salvar. |
+| `montar()` | Monta o texto do editor, mesmo sem salvar, e preenche as três abas. Com erro, mostra a lista em vermelho; sem erro, o resumo em verde (nome, início, tamanho e endereço de execução). |
+| `carregarNoSimulador()` | Grava o `.obj` na pasta temporária do sistema e chama `simulador.carregarArquivo`. |
+| `fonteMudou()` | Chamado a cada mudança no editor: refaz os números das linhas e desabilita o **Carregar no simulador**. |
+| `mostrarMensagem(texto, cor)` | Escreve na área de mensagens com a cor dada. |
+
+**JanelaPrincipal** (trecho novo)
+
+| Método | O que faz |
+|---|---|
+| `abrirMontador()` | Ação do botão **Montador**: cria a `JanelaMontador` no primeiro clique e nos seguintes só a mostra de novo. |
+
+### Estratégias adotadas
+
+- **A ponte entre as etapas é o `.obj`.** A janela não mexe na memória nem na
+  CPU: grava o programa objeto e chama o mesmo `carregarArquivo` do botão
+  **Carregar programa**. O simulador não sabe que o programa veio do montador,
+  e o montador continua sem saber que o simulador existe. Com isso, a carga
+  segura da Etapa 1 (memória de rascunho primeiro) vale também aqui, e o
+  **Reset** recarrega o programa montado.
+- **O `.obj` vai para a pasta temporária**, e não para o lado do `.asm`, para
+  não sobrescrever os `.obj` e `.lst` de `testes/montador/` quando alguém
+  edita o fonte na tela. Os arquivos oficiais são gerados pelo terminal.
+- **Monta o que está no editor, não o arquivo.** Dá para criar um erro e
+  corrigir na hora, sem salvar, que é o que o vídeo mostra.
+- **"Carregar no simulador" só depois de montar sem erros.** O botão começa
+  desabilitado, liga quando a montagem não tem erros e desliga de novo a cada
+  mudança no fonte, porque a montagem anterior deixa de valer. Assim nunca vai
+  para o simulador um programa que não corresponde ao texto da tela.
+- **Números de linha numa segunda `JTextArea`**, posta como `setRowHeaderView`
+  da rolagem do editor: rola junto com o fonte, e os erros dizem "linha N", então
+  é ali que se acha a linha.
+- **Uma janela só, escondida ao fechar** (`HIDE_ON_CLOSE`). Fechar o montador
+  não fecha o simulador, e reabrir pelo botão volta com o fonte e o resultado
+  como estavam.
+- **Abas em vez de uma tela única.** A listagem e o programa objeto são textos
+  longos; em abas, cada um ocupa a área toda, e a aba da listagem é selecionada
+  quando há erro, porque é nela que aparece o `*** ERRO:` abaixo da linha.
+
+### Demonstração da parte G
+
+No começo do vídeo, clicar em **Montador** na janela do simulador e apresentar a
+tela. No teste 5, abrir `05-copia-texto.asm`, montar, mostrar as três abas e
+clicar em **Carregar no simulador**: a janela da Etapa 1 vem para a frente com o
+programa na memória, e o **Rodar** termina com `00000F` em `00003C`. Para os
+erros, trocar uma operação por uma inexistente, montar (mensagem em vermelho,
+Carregar desabilitado) e corrigir na hora.
+
+### Validação da parte G (22/10/2026)
+
+Compilação de todos os fontes com `javac -encoding UTF-8`. Teste da janela
+fora do repositório, criando a `JanelaPrincipal` e a `JanelaMontador` e
+chamando os métodos dos botões:
+
+- o botão **Montador** cria a janela uma vez e reaproveita a mesma no segundo
+  clique; fechar só esconde;
+- com o `05-copia-texto.asm` no editor, a montagem dá
+  `Montado sem erros: programa COPIA, comeca em 000000, tamanho 000045 (69 bytes), execucao em 000000.`;
+  a aba da listagem e a do programa objeto ficam iguais ao `.lst` e ao `.obj`
+  de `testes/montador/`, e a tabela de símbolos tem os 9 símbolos;
+- **Carregar no simulador** começa desabilitado, liga depois da montagem e,
+  depois da carga, o simulador roda as 66 instruções e termina com
+  mem[`00003C`] = `00000F` e X = `00000F`;
+- editar o fonte desabilita o **Carregar**; trocar `LDX` por `LDZ` dá
+  `linha 6: operacao desconhecida: LDZ` em vermelho, com o Carregar desabilitado;
+- nenhum arquivo de `testes/` foi alterado.
