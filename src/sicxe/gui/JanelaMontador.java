@@ -5,6 +5,8 @@ import java.awt.Color;
 import java.awt.Font;
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
@@ -20,7 +22,9 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 
+import sicxe.maquina.Palavra;
 import sicxe.montador.Montador;
+import sicxe.montador.TabelaSimbolos;
 
 // Janela do montador (Etapa 2). A esquerda fica o fonte, que da para
 // editar. A direita, em abas, a listagem, a tabela de simbolos e o
@@ -29,7 +33,11 @@ import sicxe.montador.Montador;
 
 public class JanelaMontador extends JFrame {
 
+    private static final Color COR_ERRO = new Color(215, 40, 40);
+    private static final Color COR_OK = new Color(30, 130, 60);
+
     private final JanelaPrincipal simulador;
+    private final Montador montador = new Montador();
 
     private final JTextArea editor = new JTextArea();
     private final JTextArea numerosDasLinhas = new JTextArea("  1 ");
@@ -41,6 +49,7 @@ public class JanelaMontador extends JFrame {
     private final JTabbedPane abas = new JTabbedPane();
 
     private File arquivoFonte;              // null enquanto nada foi aberto ou salvo
+    private Montador.Resultado resultado;   // a ultima montagem
 
     public JanelaMontador(JanelaPrincipal simulador) {
         super("Montador SIC/XE");
@@ -72,12 +81,15 @@ public class JanelaMontador extends JFrame {
 
         JButton botaoAbrir = new JButton("Abrir .asm");
         JButton botaoSalvar = new JButton("Salvar");
+        JButton botaoMontar = new JButton("Montar");
         botaoAbrir.addActionListener(e -> abrir());
         botaoSalvar.addActionListener(e -> salvar());
+        botaoMontar.addActionListener(e -> montar());
 
         JPanel barra = new JPanel();
         barra.add(botaoAbrir);
         barra.add(botaoSalvar);
+        barra.add(botaoMontar);
 
         JScrollPane rolagemEditor = new JScrollPane(editor);
         rolagemEditor.setRowHeaderView(numerosDasLinhas);
@@ -115,7 +127,7 @@ public class JanelaMontador extends JFrame {
             editor.setCaretPosition(0);
             arquivoFonte = arquivo;
             setTitle("Montador SIC/XE - " + arquivo.getName());
-            mostrarMensagem("Arquivo aberto: " + arquivo.getName() + ".", Color.BLACK);
+            mostrarMensagem("Arquivo aberto: " + arquivo.getName() + ". Clique em Montar.", Color.BLACK);
         } catch (IOException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Erro ao abrir", JOptionPane.ERROR_MESSAGE);
         }
@@ -135,6 +147,33 @@ public class JanelaMontador extends JFrame {
             mostrarMensagem("Salvo em " + arquivoFonte.getName() + ".", Color.BLACK);
         } catch (IOException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Erro ao salvar", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // Monta o texto que esta no editor (mesmo que ainda nao tenha sido salvo).
+    private void montar() {
+        List<String> fonte = Arrays.asList(editor.getText().split("\\r?\\n"));
+        resultado = montador.montar(fonte);
+
+        listagem.setText(resultado.listagem);
+        listagem.setCaretPosition(0);
+        programaObjeto.setText(resultado.programaObjeto);
+        modeloSimbolos.setRowCount(0);
+        for (TabelaSimbolos.Simbolo s : resultado.simbolos.todos()) {
+            modeloSimbolos.addRow(new Object[] {
+                s.nome, Palavra.hex(s.valor, 6), s.relativo ? "relativo" : "absoluto", s.linha });
+        }
+
+        if (resultado.temErros()) {
+            mostrarMensagem(resultado.erros.size() + " erro(s). O programa objeto nao foi gerado.\n"
+                    + String.join("\n", resultado.erros), COR_ERRO);
+            abas.setSelectedIndex(0);
+        } else {
+            mostrarMensagem("Montado sem erros: programa " + resultado.nomePrograma
+                    + ", comeca em " + Palavra.hex(resultado.enderecoInicial, 6)
+                    + ", tamanho " + Palavra.hex(resultado.tamanhoPrograma, 6)
+                    + " (" + resultado.tamanhoPrograma + " bytes), execucao em "
+                    + Palavra.hex(resultado.enderecoExecucao, 6) + ".", COR_OK);
         }
     }
 
