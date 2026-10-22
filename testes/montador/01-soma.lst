@@ -1,0 +1,13 @@
+Linha  Ender.  Codigo objeto   Fonte
+    1                          . Teste 1 do montador - o mesmo programa de testes/01-soma.hex,
+    2                          . agora escrito em assembly. Tem que gerar exatamente os mesmos bytes.
+    3  000000                  SOMA     START   0
+    4  000000  010005                   LDA     #5          . A = 5
+    5  000003  190003                   ADD     #3          . A = 8
+    6  000006  0F0100                   STA     256         . memoria[0100] = 8 (256 = 0100 em hexadecimal)
+    7  000009  4F0000                   RSUB                . L = 0 -> fim do programa
+    8  00000C                           END     SOMA
+
+Tabela de simbolos
+Simbolo     Valor   Tipo
+SOMA        000000  relativo

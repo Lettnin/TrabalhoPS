@@ -1,0 +1,36 @@
+Linha  Ender.  Codigo objeto   Fonte
+    1                          . Teste 5 do montador - so existe na Etapa 2. Usa o que os outros 4 nao usam:
+    2                          . EQU com * e com expressao, RESB com simbolo, BYTE C'...' e X'...', WORD
+    3                          . negativo, TIX e formato 4 com numero (que nao gera registro M).
+    4                          . Copia o texto de ORIGEM para DESTINO, um byte por vez.
+    5  000000                  COPIA    START   0
+    6  000000  050000                   LDX     #0          . X = 0
+    7  000003  53A018          LOOP     LDCH    ORIGEM,X    . A recebe o byte X do texto
+    8  000006  57A024                   STCH    DESTINO,X   . e grava no destino
+    9  000009  2D000F                   TIX     #TAM        . X = X + 1 e compara X com TAM
+   10  00000C  3B2FF4                   JLT     LOOP        . repete enquanto X < TAM
+   11  00000F  01000F                   LDA     #TAM
+   12  000012  0F2027                   STA     COPIADOS    . COPIADOS = 15
+   13  000015  75101000                 +LDT    #4096       . formato 4 com numero: T = 4096 (001000)
+   14  000019  B420                     CLEAR   L
+   15  00001B  4F0000                   RSUB
+   16  00001E  5349432F5845204E4120554650454C  ORIGEM   BYTE    C'SIC/XE NA UFPEL'
+   17  00002D                  FIMORIG  EQU     *           . * = endereco atual, logo depois do texto
+   18  00000F                  TAM      EQU     FIMORIG-ORIGEM
+   19  00002D                  DESTINO  RESB    TAM
+   20  00003C                  COPIADOS RESW    1
+   21  00003F  F0F0F0          MASCARA  BYTE    X'F0F0F0'
+   22  000042  FFFFFF          NEGATIVO WORD    -1
+   23  000045                           END     COPIA
+
+Tabela de simbolos
+Simbolo     Valor   Tipo
+COPIA       000000  relativo
+LOOP        000003  relativo
+ORIGEM      00001E  relativo
+FIMORIG     00002D  relativo
+TAM         00000F  absoluto
+DESTINO     00002D  relativo
+COPIADOS    00003C  relativo
+MASCARA     00003F  relativo
+NEGATIVO    000042  relativo

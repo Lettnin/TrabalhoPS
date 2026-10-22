@@ -1,0 +1,35 @@
+Linha  Ender.  Codigo objeto   Fonte
+    1                          . Teste 4 do montador - deslocamentos, negativos, divisao e bytes
+    2                          . (testes/04-bytes-e-sinal.hex).
+    3  000000                  SINAL    START   0
+    4  000000  010007                   LDA     #7          . A = 7
+    5  000003  A403                     SHIFTL  A,4         . A = 112 (o montador grava 4 - 1 = 3)
+    6  000005  A801                     SHIFTR  A,2         . A = 28
+    7  000007  01000A                   LDA     #10
+    8  00000A  1D0019                   SUB     #25         . A = -15 (FFFFF1)
+    9  00000D  0F201D                   STA     NEG
+   10  000010  290000                   COMP    #0          . compara -15 com 0: CC fica "<"
+   11  000013  3B2003                   JLT     PULA
+   12  000016  3F200F                   J       FIM         . nao deve ser executado
+   13  000019  532014          PULA     LDCH    TEXTO       . A recebe so o byte 'A' (41)
+   14  00001C  572014                   STCH    SAIDA       . grava esse byte em SAIDA
+   15  00001F  010064                   LDA     #100
+   16  000022  250007                   DIV     #7          . A = 14
+   17  000025  0F200E                   STA     DIVRES
+   18  000028  B420            FIM      CLEAR   L
+   19  00002A  4F0000                   RSUB
+   20  00002D                  NEG      RESW    1
+   21  000030  414243          TEXTO    BYTE    C'ABC'
+   22  000033                  SAIDA    RESW    1
+   23  000036                  DIVRES   RESW    1
+   24  000039                           END     SINAL
+
+Tabela de simbolos
+Simbolo     Valor   Tipo
+SINAL       000000  relativo
+PULA        000019  relativo
+FIM         000028  relativo
+NEG         00002D  relativo
+TEXTO       000030  relativo
+SAIDA       000033  relativo
+DIVRES      000036  relativo

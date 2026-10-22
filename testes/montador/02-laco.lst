@@ -1,0 +1,29 @@
+Linha  Ender.  Codigo objeto   Fonte
+    1                          . Teste 2 do montador - soma os 5 elementos de um vetor (testes/02-laco.hex).
+    2                          . STA SOMA usa o SOMA antes de ele ser definido: referencia futura.
+    3                          . JLT LOOP volta para tras: deslocamento negativo relativo ao PC.
+    4  000000                  LACO     START   0
+    5  000000  050000                   LDX     #0          . X = 0 (indice em bytes)
+    6  000003  010000                   LDA     #0          . A = 0
+    7  000006  6D0003                   LDS     #3          . S = 3 (tamanho de uma palavra)
+    8  000009  75000F                   LDT     #15         . T = 15 (5 elementos x 3 bytes)
+    9  00000C  1BA00D          LOOP     ADD     VETOR,X     . A = A + vetor[X]
+   10  00000F  9041                     ADDR    S,X         . X = X + 3
+   11  000011  A015                     COMPR   X,T         . compara X com T
+   12  000013  3B2FF6                   JLT     LOOP        . volta enquanto X < T
+   13  000016  0F2012                   STA     SOMA
+   14  000019  4F0000                   RSUB
+   15  00001C  000001          VETOR    WORD    1
+   16  00001F  000002                   WORD    2
+   17  000022  000003                   WORD    3
+   18  000025  000004                   WORD    4
+   19  000028  000005                   WORD    5
+   20  00002B                  SOMA     RESW    1
+   21  00002E                           END     LACO
+
+Tabela de simbolos
+Simbolo     Valor   Tipo
+LACO        000000  relativo
+LOOP        00000C  relativo
+VETOR       00001C  relativo
+SOMA        00002B  relativo

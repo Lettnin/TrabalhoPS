@@ -1,0 +1,38 @@
+Linha  Ender.  Codigo objeto   Fonte
+    1                          . Teste 3 do montador - modos de enderecamento, BASE, formato 4 e sub-rotina.
+    2                          . E o programa de testes/03-enderecamento.hex com uma diferenca: a TABELA
+    3                          . foi empurrada para longe (ESPACO RESB 2048). Perto, o montador usaria o
+    4                          . modo relativo ao PC, e o modo base nao apareceria.
+    5  001000                  TESTE3   START   1000
+    6  001000  69101833                 +LDB    #TABELA     . formato 4 + imediato: B = endereco da TABELA
+    7  001004                           BASE    TABELA      . avisa o montador que B vale TABELA daqui em diante
+    8  001004  010007                   LDA     #7          . A = 7
+    9  001007  0F4000                   STA     TABELA      . longe demais para o PC: usa a base
+   10  00100A  010000                   LDA     #0          . A = 0
+   11  00100D  034000                   LDA     TABELA      . base de novo: A = 7
+   12  001010  4B200F                   JSUB    DOBRA       . relativo ao PC: L = 1013
+   13  001013  0F2011                   STA     RESULT      . RESULT = 14
+   14  001016  022014                   LDA     @PONTEIRO   . indireto: PONTEIRO guarda o endereco de VALOR
+   15  001019  0F10102A                 +STA    FINAL       . formato 4 com rotulo: gera registro M
+   16  00101D  B420                     CLEAR   L           . L = 0
+   17  00101F  4F0000                   RSUB                . L = 0 -> fim do programa
+   18  001022  9000            DOBRA    ADDR    A,A         . A = A + A
+   19  001024  4F0000                   RSUB                . volta para o endereco guardado em L
+   20  001027                  RESULT   RESW    1
+   21  00102A                  FINAL    RESW    1
+   22  00102D  001030          PONTEIRO WORD    VALOR       . guarda um endereco: tambem gera registro M
+   23  001030  000063          VALOR    WORD    99
+   24  001033                  ESPACO   RESB    2048
+   25  001833                  TABELA   RESW    1
+   26  001836                           END     TESTE3
+
+Tabela de simbolos
+Simbolo     Valor   Tipo
+TESTE3      001000  relativo
+DOBRA       001022  relativo
+RESULT      001027  relativo
+FINAL       00102A  relativo
+PONTEIRO    00102D  relativo
+VALOR       001030  relativo
+ESPACO      001033  relativo
+TABELA      001833  relativo
