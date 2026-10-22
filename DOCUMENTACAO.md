@@ -466,3 +466,77 @@ repositório. Isso verifica a compilação do estado existente, mas não certifi
 integração do montador, porque as passagens, o analisador, o codificador e a
 montagem ainda são esqueleto no repositório. A validação de integração
 permanece pendente.
+
+## 7. Etapa 2 — Codificador e programas de teste (Eduardo, parte C)
+
+O `Codificador` faz o caminho inverso do `Enderecamento` da Etapa 1: lá, os bits `n i x b p e` viravam endereço; aqui, o endereço vira bits. A passagem 2 chama o `Codificador` para cada instrução, com o opcode já consultado na tabela de instruções e o valor do operando já calculado pela `Expressao`. O código é o da versão de referência do grupo, sem mudanças.
+
+### Estruturas de dados
+
+O `Codificador` não guarda dados: é uma classe final, com construtor privado e métodos estáticos. Ele lê os campos da `Linha` preenchidos pelo analisador (`operando`, `imediato`, `indireto`, `indexado`, `formato4`) e pela passagem 1 (`endereco`), devolve os bytes da instrução e, no formato 4 com rótulo, preenche o pedido de registro M (`enderecoModificacao` e `meiosBytesModificacao`).
+
+Os bytes seguem os formatos do Beck:
+
+| Formato | Campos (bits) | Bytes |
+|---|---|---|
+| 2 | opcode (8) · r1 (4) · r2 (4) | 2 |
+| 3 | opcode (6) · n i x b p e · disp (12) | 3 |
+| 4 | opcode (6) · n i x b p e · endereço (20) | 4 |
+
+### Funções desenvolvidas
+
+| Método | O que faz |
+|---|---|
+| `formato2(linha, opcode)` | Separa o operando na vírgula, converte cada registrador com `Registradores.numeroPorNome` e junta o opcode com `r1` e `r2`. `CLEAR` e `TIXR` têm um registrador só; `SHIFTL` e `SHIFTR` gravam n − 1. Ex.: `ADDR S,X` → `90 41`, `CLEAR L` → `B4 20`, `SHIFTL A,4` → `A4 03`. |
+| `formato34(linha, opcode, alvo, base)` | Escolhe os bits `n i x b p e`, calcula o campo de 12 ou 20 bits e devolve 3 ou 4 bytes. `alvo` é o valor e o tipo do operando (`null` no `RSUB`); `base` é o valor do `BASE` em vigor (`null` se não houver). |
+| `exigir(...)` (privado) | Confere a quantidade de operandos do formato 2. |
+| `registrador(...)` (privado) | Converte o nome do registrador e troca o erro da Etapa 1 por `registrador desconhecido: ...`. |
+| `numero(...)` (privado) | Lê o número de bits do `SHIFTL` e do `SHIFTR`. |
+
+### Estratégias adotadas
+
+- **n, i, x e e saem do texto.** Sem sinal, n i = 1 1; com `#`, 0 1; com `@`, 1 0. O `,X` liga o x e o `+` liga o e. O montador sempre gera instruções SIC/XE (n e i nunca são 0 0), e `,X` junto com `#` ou `@` é erro.
+- **b e p são a decisão de verdade** (Beck, seção 2.2.1), nesta ordem:
+  1. formato 4: o valor inteiro vai nos 20 bits, com b = p = 0;
+  2. operando absoluto (um número, ou um símbolo de `EQU` com número): vai direto no disp, com b = p = 0, de 0 a 4095;
+  3. operando relativo (um rótulo do programa): primeiro o relativo ao PC, `disp = alvo − (endereço + 3)`, de −2048 a 2047, com o negativo em complemento de 2 em 12 bits; senão, o relativo à base, `disp = alvo − BASE`, de 0 a 4095; senão, erro pedindo o formato 4.
+- **O PC vem antes da base** porque só depende do próprio programa. A base depende de o programa ter carregado em B o valor prometido no `BASE`. Além disso, o relativo ao PC não precisa de registro M: a distância entre a instrução e o rótulo não muda se o programa mudar de lugar.
+- **O +3** é o tamanho da instrução de formato 3: quando ela executa, o PC já aponta para a próxima. É a mesma regra do `Enderecamento` da Etapa 1 (`ins.endereco + ins.tamanho`).
+- **Registro M só no formato 4 com rótulo.** `+LDB #TABELA` pede um M (no `endereço + 1`, com 5 meios-bytes); `+LDT #4096` não pede, porque 4096 é só um número.
+- **Juntar os bits.** Os pedaços são unidos com `<<` e `|`, do mesmo jeito que o `Decodificador` da Etapa 1 os separava com `>>` e `&`.
+
+### Programas de teste e resultados esperados
+
+Os programas ficam em `testes/montador/`. Os quatro primeiros são os da Etapa 1, agora em assembly; o quinto usa as diretivas e expressões que os outros não usam. Os `.lst` e `.obj` ao lado de cada fonte foram gerados pelo montador: se uma mudança no montador alterar algum deles, o `git diff` mostra.
+
+```bash
+java -cp bin sicxe.montador.MontadorConsole testes/montador/<arquivo>.asm       # monta
+java -cp bin sicxe.io.TesteConsole testes/montador/<arquivo>.obj <enderecos>    # roda
+```
+
+| Teste | O que exercita | Endereços a conferir | Resultado esperado | Instruções |
+|---|---|---|---|---|
+| `01-soma.asm` | imediato e endereço fixo; os mesmos 12 bytes do `01-soma.hex` | `0100` | mem[`000100`] = `000008` | 4 |
+| `02-laco.asm` | referência futura, indexado, formato 2, salto para trás (`JLT LOOP` → `3B2FF6`) | `002B` | A = X = `00000F`; mem[`00002B`] = `00000F` (15) | 26 |
+| `03-enderecamento.asm` | `BASE`, formato 4, indireto, sub-rotina, registros M | `1027 102A 1833` | B = `001833`; `00000E` (14), `000063` (99), `000007` | 13 |
+| `04-bytes-e-sinal.asm` | `SHIFTL` e `SHIFTR` (gravam n − 1), negativo, `BYTE C'ABC'`, divisão | `002D 0033 0036` | CC = `<`; `FFFFF1` (−15), `410000` (o 41 é o `A`), `00000E` (14) | 15 |
+| `05-copia-texto.asm` | `EQU *`, `EQU` com expressão, `RESB TAM`, `BYTE X'...'`, `WORD -1`, `TIX`, formato 4 com número | `003C` | X = `00000F`; T = `001000`; mem[`00003C`] = `00000F`; de `002D` a `003B`, o texto `SIC/XE NA UFPEL` | 66 |
+
+Os bytes do montador nem sempre são os dos `.hex` escritos à mão. No teste 2, `ADD VETOR,X` virou `1B A0 0D` (relativo ao PC) em vez de `1B 80 1C` (direto): os dois chegam ao mesmo endereço e dão o mesmo resultado, e o montador prefere o relativo ao PC. No teste 3, a TABELA foi afastada com `ESPACO RESB 2048` para obrigar o uso da base. No teste 4, os dados começam em `002D` em vez de `0030`, porque o fonte não tem o buraco de 3 bytes do `.hex`.
+
+### Testes de erro (`testes/montador/erros/`)
+
+Nenhum deles gera `.obj`. A primeira linha de cada arquivo traz a mensagem esperada.
+
+| Arquivo | Pego na | Mensagem esperada |
+|---|---|---|
+| `simbolo-indefinido.asm` | passagem 2 | `linha 4: simbolo indefinido: ROTINA` |
+| `simbolo-duplicado.asm` | passagem 1 | `linha 6: simbolo duplicado: VALOR (ja definido na linha 5)` |
+| `operacao-invalida.asm` | passagem 1 | `linha 3: operacao desconhecida: LDZ` |
+| `fora-do-alcance.asm` | passagem 2 | `linha 4: o endereco 000BBE esta longe demais para o PC (e nao ha BASE); use o formato 4 (+)` |
+
+No `fora-do-alcance.asm`, trocar `LDA LONGE` por `+LDA LONGE` faz a montagem passar, porque o formato 4 alcança a memória toda.
+
+### Validação da parte C (22/10/2026)
+
+O analisador, a passagem 1, a tabela de instruções e o `MontadorConsole` ainda não estão no repositório. Por isso, a validação usou uma cópia fora do repositório: o código de referência do grupo por baixo e, por cima, todos os arquivos já enviados, inclusive o limite das reservas (parte A) e a multiplicação e divisão (parte D). Os cinco programas objeto e as cinco listagens saíram idênticos aos de referência; no `TesteConsole`, os cinco programas deram os valores da tabela acima; e os quatro testes de erro deram as mensagens esperadas, sem gerar `.obj`. A validação pelo fluxo real fica para quando as peças que faltam forem enviadas.
