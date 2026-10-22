@@ -31,6 +31,10 @@ import sicxe.montador.TabelaSimbolos;
 // programa objeto. Embaixo, as mensagens: os erros com o numero da linha,
 // ou o resumo da montagem.
 
+// "Carregar no simulador" grava o programa objeto num arquivo e chama o
+// carregarArquivo da JanelaPrincipal. O simulador recebe o programa do
+// mesmo jeito que receberia um arquivo aberto pelo botao dele.
+
 public class JanelaMontador extends JFrame {
 
     private static final Color COR_ERRO = new Color(215, 40, 40);
@@ -47,6 +51,7 @@ public class JanelaMontador extends JFrame {
     private final DefaultTableModel modeloSimbolos =
             new DefaultTableModel(new String[] { "Simbolo", "Valor", "Tipo", "Linha" }, 0);
     private final JTabbedPane abas = new JTabbedPane();
+    private final JButton botaoCarregar = new JButton("Carregar no simulador");
 
     private File arquivoFonte;              // null enquanto nada foi aberto ou salvo
     private Montador.Resultado resultado;   // a ultima montagem
@@ -72,7 +77,7 @@ public class JanelaMontador extends JFrame {
         programaObjeto.setEditable(false);
         mensagens.setEditable(false);
 
-        // Qualquer mudanca no fonte refaz os numeros das linhas.
+        // Qualquer mudanca no fonte invalida a montagem anterior.
         editor.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { fonteMudou(); }
             public void removeUpdate(DocumentEvent e) { fonteMudou(); }
@@ -85,11 +90,14 @@ public class JanelaMontador extends JFrame {
         botaoAbrir.addActionListener(e -> abrir());
         botaoSalvar.addActionListener(e -> salvar());
         botaoMontar.addActionListener(e -> montar());
+        botaoCarregar.addActionListener(e -> carregarNoSimulador());
+        botaoCarregar.setEnabled(false);
 
         JPanel barra = new JPanel();
         barra.add(botaoAbrir);
         barra.add(botaoSalvar);
         barra.add(botaoMontar);
+        barra.add(botaoCarregar);
 
         JScrollPane rolagemEditor = new JScrollPane(editor);
         rolagemEditor.setRowHeaderView(numerosDasLinhas);
@@ -168,16 +176,33 @@ public class JanelaMontador extends JFrame {
             mostrarMensagem(resultado.erros.size() + " erro(s). O programa objeto nao foi gerado.\n"
                     + String.join("\n", resultado.erros), COR_ERRO);
             abas.setSelectedIndex(0);
+            botaoCarregar.setEnabled(false);
         } else {
             mostrarMensagem("Montado sem erros: programa " + resultado.nomePrograma
                     + ", comeca em " + Palavra.hex(resultado.enderecoInicial, 6)
                     + ", tamanho " + Palavra.hex(resultado.tamanhoPrograma, 6)
                     + " (" + resultado.tamanhoPrograma + " bytes), execucao em "
                     + Palavra.hex(resultado.enderecoExecucao, 6) + ".", COR_OK);
+            botaoCarregar.setEnabled(true);
+        }
+    }
+
+    // Grava o .obj na pasta temporaria do sistema, para nao sobrescrever
+    // nada na pasta de testes, e entrega o arquivo ao simulador.
+    private void carregarNoSimulador() {
+        String nome = arquivoFonte != null ? Montador.semExtensao(arquivoFonte.getName()) : "programa";
+        File objeto = new File(System.getProperty("java.io.tmpdir"), nome + ".obj");
+        try {
+            Montador.gravar(objeto, resultado.programaObjeto);
+            simulador.carregarArquivo(objeto);
+            simulador.toFront();
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Erro ao gravar o .obj", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void fonteMudou() {
+        botaoCarregar.setEnabled(false);
         StringBuilder sb = new StringBuilder();
         for (int k = 1; k <= editor.getLineCount(); k++) {
             sb.append(String.format("%3d ", k)).append('\n');
