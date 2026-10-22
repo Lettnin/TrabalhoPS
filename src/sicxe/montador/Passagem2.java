@@ -1,16 +1,6 @@
 package sicxe.montador;
 
 import java.util.List;
-
-// Segunda passagem (o ASSEMBLER2 dos slides): gera o codigo de cada linha.
-//
-// A tabela de simbolos ja esta completa, entao todo operando tem valor.
-//   - instrucao: pega o opcode na MOT e chama o Codificador;
-//   - BYTE e WORD: converte a constante (Diretivas);
-//   - BASE e NOBASE: guarda o valor da base para as linhas seguintes;
-//   - END: guarda onde a execucao comeca;
-//   - START, EQU, ORG, RESB e RESW nao geram bytes.
-
 public class Passagem2 {
 
     private final TabelaSimbolos simbolos;
