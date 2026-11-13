@@ -792,3 +792,235 @@ repositório, sem dependências externas, compilados com JDK 25.0.2 e
 - **comoTexto (2):** o texto da tabela vazia e o texto exato da macro `SOMA`,
   com os 6 espaços antes de `(definida`, os 4 espaços antes de cada linha do
   esqueleto e a linha em branco no fim.
+
+## 10. Etapa 3 — O algoritmo de uma passagem (João, parte E)
+
+Esta parte segue o processador de macros de uma passagem dos slides "03 -
+Macros" do professor (os três modos do diagrama de estados e o contador de
+nível de definição) e a seção 4.1 do Beck. É uma classe só do pacote
+`sicxe.macro`, a `ProcessadorMacros`. Ela lê o fonte, guarda as definições na
+`TabelaMacros` (Pedro) e devolve o fonte expandido, que vira o `MASMAPRG.ASM`.
+As peças de baixo são usadas pelo contrato da Seção 3.2 do guia: a
+`LinhaMacro` (Victor) quebra a linha, o `Argumentos` (Samuel) lê os formais e
+associa os parâmetros reais e a `Substituicao` (Eduardo) faz as duas trocas de
+texto.
+
+### Estruturas de dados
+
+**Resultado** (classe interna pública) é o que o processador devolve:
+
+| Campo | Tipo | Conteúdo |
+|---|---|---|
+| `expandido` | `List<String>` | o fonte expandido, linha por linha (o `MASMAPRG.ASM`) |
+| `macros` | `TabelaMacros` | as macros que estavam definidas quando o fonte acabou |
+| `erros` | `List<String>` | as mensagens de erro, já com o número da linha |
+| `expansoes` | `int` | quantas chamadas foram expandidas; é também o contador do `.SER` |
+
+O método `temErros()` diz se a lista de erros não está vazia. O
+`MacroMontador` (Arthur Trettin) só grava o `MASMAPRG.ASM` e chama o montador
+quando ela está vazia.
+
+**Expansao** (classe interna privada) é uma chamada em andamento:
+
+| Campo | Tipo | Conteúdo |
+|---|---|---|
+| `macro` | `Macro` | a macro que está sendo expandida |
+| `valores` | `String[]` | os parâmetros reais: `valores[0]` é o número de série, `valores[1..n]` vêm do `Argumentos.associar` |
+| `proxima` | `int` | o índice da próxima linha do esqueleto a ser entregue |
+
+**As duas pilhas.** O processador tem duas pilhas, cada uma com um papel:
+
+- **pilha de expansões** (`Deque<Expansao> expansoes`, um `ArrayDeque`): diz
+  **de onde vêm as linhas**. Cada chamada em andamento é um andar; o topo é a
+  chamada mais interna. É ela que faz a chamada aninhada funcionar.
+- **pilha de formais** (`List<List<String>> formais`, local ao `definir`): diz
+  **de quem é cada parâmetro** enquanto uma definição é guardada. Cada nível é
+  a lista `formaisComSerie()` de uma macro aberta (`[.SER, &A, &B...]`): o
+  nível 0 é a macro que está sendo guardada, e cada `MACRO` encontrado no corpo
+  acrescenta um nível. O tamanho da pilha é o **contador de nível de
+  definição** dos slides. É ela que faz a definição aninhada funcionar.
+
+Os outros campos guardam a posição da leitura: `fonte` (as linhas do arquivo),
+`indiceFonte` (a próxima linha do arquivo a ler) e `linhaAtual` (o número, a
+partir de 1, da última linha lida do arquivo, usado nas mensagens de erro).
+
+### Funções desenvolvidas
+
+| Método | Responsabilidade |
+|---|---|
+| `processar(List<String> fonte)` | O laço principal. Pede linhas ao `proximaLinha` até acabarem e trata cada uma em um dos três modos: `MACRO`/`MCDEFN` → `definir`; `MEND`/`MCEND` solto → erro; operação que é nome de macro → `expandir`; o resto → copia para a saída. Cada linha é tratada dentro de um `try`, e o erro é guardado com o `onde()` sem parar o processamento. |
+| `proximaLinha()` | Devolve a próxima linha a tratar, venha de onde vier: se há expansão em andamento, a próxima linha do esqueleto do topo, já passada pelo `Substituicao.expandir`; quando o esqueleto acaba, desempilha e tenta de novo; sem expansões, a próxima linha do arquivo. `null` quando o fonte acaba. |
+| `definir(LinhaMacro prototipo)` | Modo de definição. Lê o protótipo, depois o corpo pelo `proximaLinha`, até o `MEND` que esvazia a pilha de formais. Cada linha do corpo passa pelo `Substituicao.preparar` e vai para o esqueleto; comentários de linha inteira são descartados. No fim, guarda a macro na tabela (substituindo a anterior, se o nome já existia). |
+| `lerPrototipo(LinhaMacro prototipo)` | Confere o nome da macro (tem que existir e ser só letras e dígitos, começando por letra), cria a `Macro` com a linha da definição e pede os formais ao `Argumentos.lerFormais`. |
+| `formaisDaMacroDeDentro(LinhaMacro linha)` | Devolve os formais (com `.SER`) de uma macro definida dentro da que está sendo guardada, para o novo nível da pilha de formais. Se o protótipo dela tiver erro, devolve só `[.SER]`: o erro aparece quando ela for definida de verdade. |
+| `expandir(LinhaMacro chamada)` | Modo de expansão. Recusa a macro que já está na pilha (chama a si mesma), pede os valores ao `Argumentos.associar`, soma 1 no contador e põe o número de série em `valores[0]`, escreve a chamada como comentário (e o `ROTULO EQU *`, se tiver rótulo) e empilha a expansão. |
+| `onde()` | O começo da mensagem de erro: `linha N: ` ou, durante uma expansão, `linha N (na expansao de NOME): `. |
+
+### Estratégias adotadas
+
+**E1 — Uma passagem, três modos.** Os slides mostram uma implementação de
+duas passagens (a primeira coleta todas as definições, a segunda expande) e
+uma de uma passagem. Ficamos com a de uma passagem por causa da **definição
+aninhada**: a macro de dentro só passa a existir quando a de fora é expandida.
+Numa primeira passagem que só coleta definições, ninguém expande nada, então
+a de dentro nunca seria definida. O laço do `processar` decide o modo pela
+própria linha:
+
+| Modo | Quando | O que faz com a linha |
+|---|---|---|
+| **Normal** (cópia) | linha comum, comentário ou linha vazia | copia para a saída |
+| **Definição** | a operação é `MACRO` ou `MCDEFN` | o `definir` lê as linhas seguintes até o `MEND` desta definição |
+| **Expansão** | a operação é o nome de uma macro da tabela | o `expandir` empilha a chamada; as linhas seguintes vêm do esqueleto |
+
+O preço é a restrição dos slides: **não há referência avante**. A macro tem
+que estar definida antes da primeira chamada. Uma chamada antes da definição
+é copiada como linha comum, e o montador acusa operação desconhecida.
+
+**E2 — O `proximaLinha`.** É o que permite aninhar. Como ele entrega a
+próxima linha venha do arquivo ou do esqueleto de uma expansão, uma linha que
+saiu de uma expansão passa pelo mesmo laço que uma linha do arquivo:
+
+- se a linha expandida **chama outra macro**, o `expandir` empilha outra
+  expansão: é a **chamada aninhada**. Quando o esqueleto da de dentro acaba,
+  o `proximaLinha` desempilha e continua de onde a de fora parou;
+- se a linha expandida **é um `MACRO`**, o `definir` começa uma definição e lê
+  o corpo pelo mesmo `proximaLinha`, ou seja, do esqueleto da macro de fora, já
+  com os parâmetros dela trocados: é a **definição aninhada**.
+
+A pilha de expansões no teste 4, na primeira chamada de `DELTA` (que chama
+`MULT` três vezes):
+
+| Linha que sai do `proximaLinha` | Veio de | O que acontece | Pilha depois (topo à direita) |
+|---|---|---|---|
+| `DELTA A1,B1,C1,D1` | arquivo | é macro: empilha | DELTA |
+| `MULT A1,C1,TEMP1` | DELTA | é macro: empilha | DELTA, MULT |
+| `LDA A1` / `MUL C1` | MULT | copia | DELTA, MULT |
+| `STA TEMP1` | MULT | copia; MULT acabou: desempilha | DELTA |
+| `MULT TEMP1,#4,TEMP1` | DELTA | é macro: empilha | DELTA, MULT |
+| ... | | | |
+| `STA D1` | DELTA | copia; DELTA acabou: desempilha | (vazia) |
+
+`MULT` é definida **depois** de `DELTA` no fonte, e funciona: na definição, as
+linhas de `DELTA` só são guardadas; elas só são examinadas quando `DELTA` é
+chamada, e aí `MULT` já existe.
+
+**E3 — O contador de nível e a pilha de formais.** Dentro do `definir`, um
+`MACRO` sobe um nível (acrescenta os formais da macro de dentro na pilha) e um
+`MEND` desce um nível. O `MEND` que esvazia a pilha é o desta definição: ele
+fecha a definição e não entra no esqueleto. Os `MACRO` e `MEND` internos
+entram, porque fazem parte do corpo. No teste 3 (`ESCALA`, o exemplo `SCALE`
+dos slides), o contador passa por 1, 2, 1, 2, 1, 0, a mesma sequência dos
+slides.
+
+A mesma pilha é passada para o `Substituicao.preparar`, que procura cada
+parâmetro de dentro para fora: só o que é da macro do nível 0 vira `?n` agora;
+os parâmetros das macros de dentro ficam com o nome e viram `?n` quando elas
+forem definidas de verdade, na expansão da de fora. Por isso o esqueleto de
+`ESCALA` guarda `SHIFTR A,?1` (o `&N` é de `ESCALA`) e `LDA &A` (o `&A` é de
+`MULESC`).
+
+**E4 — O número de série (`.SER`).** O contador `expansoes` do `Resultado` é
+global: soma 1 a cada chamada expandida, inclusive as aninhadas, e o
+`expandir` grava o valor com 4 dígitos (`0001`, `0002`...) em `valores[0]`,
+que é o `?0` do esqueleto. Assim, `POS.SER` vira `POS0001` numa expansão e
+`POS0002` na outra, e o montador não acusa símbolo duplicado (compare o teste
+2 com o `erros/sem-ser.asm`). O mesmo contador é o número de chamadas
+expandidas que o terminal e a janela mostram.
+
+**E5 — O que vai para o `MASMAPRG.ASM`.** O `processar` só escreve na saída
+em dois lugares: no modo normal (a linha como veio) e no `expandir`:
+
+- a definição (`MACRO` até `MEND`) não aparece: virou entrada da tabela de
+  macros;
+- cada chamada aparece como comentário, com um `.` na frente da linha
+  original, antes das linhas que gerou, inclusive as chamadas de dentro;
+- o rótulo de uma chamada vira uma linha `ROTULO EQU *` antes das linhas
+  expandidas. O `*` é o endereço atual, então o rótulo marca a primeira
+  instrução gerada, sem brigar com um rótulo que a primeira linha do esqueleto
+  já tenha.
+
+Para o teste 1:
+
+```
+Fonte                                   MASMAPRG.ASM
+         SOMA    PRECO,FRETE,TOTAL      .         SOMA    PRECO,FRETE,TOTAL
+                                                 LDA     PRECO
+                                                 ADD     FRETE
+                                                 STA     TOTAL
+DOBRAR   SOMA    TOTAL,TOTAL,DOBRO      .DOBRAR   SOMA    TOTAL,TOTAL,DOBRO
+                                        DOBRAR   EQU     *
+                                                 LDA     TOTAL
+                                                 ADD     TOTAL
+                                                 STA     DOBRO
+```
+
+**E6 — Erros.** Como no montador, o processador **não para no primeiro
+erro**: cada linha é tratada dentro de um `try`, e o `catch` guarda a mensagem
+do `ErroMacro` com o `onde()` na frente e segue para a próxima linha. O
+`onde()` é calculado antes de tratar a linha, então o erro aponta a linha onde
+o problema começou (no `falta o MEND`, a linha do `MACRO`). Um erro dentro de
+uma expansão mostra a linha da chamada no fonte e o nome da macro:
+`linha 8 (na expansao de LACO): ...`. Os erros desta classe:
+
+| Erro | Onde é detectado | Mensagem |
+|---|---|---|
+| Definição sem fim | `definir`, quando o `proximaLinha` devolve `null` | `falta o MEND da macro DOBRA` |
+| Fim sem definição | `processar` | `MEND sem MACRO correspondente` |
+| Macro sem nome | `lerPrototipo` | `falta o nome da macro, que vai no rotulo: NOME MACRO &A,&B` |
+| Nome inválido | `lerPrototipo` | `nome de macro invalido: 1X (use so letras e digitos)` |
+| Macro que chama a si mesma | `expandir` | `a macro LACO chama a si mesma, e a expansao nunca terminaria` |
+
+Os erros de parâmetro (formal repetido ou mal escrito, parâmetros demais,
+palavra-chave inexistente) são lançados pelo `Argumentos` e pela `Macro` e
+chegam ao mesmo `catch`, com a linha na frente.
+
+Dois cuidados:
+
+- **Protótipo com erro.** Se o protótipo tem erro, o `definir` guarda o erro,
+  lê o corpo assim mesmo até o `MEND` e só depois lança. Se lançasse logo, as
+  linhas do corpo seriam tratadas como linhas normais, e o `MEND` dela daria
+  um `MEND sem MACRO` falso, além de outros erros em cascata.
+- **Macro que chama a si mesma.** O nosso processador não tem macros
+  condicionais (`IF`), então uma macro que chama a si mesma nunca pararia de
+  expandir. Antes de empilhar, o `expandir` percorre a pilha de expansões
+  procurando a mesma macro; se ela já está lá (direta ou indiretamente, como
+  `A` chama `B` que chama `A`), é erro.
+
+**Reaproveitamento.** A classe não mexe no montador da Etapa 2: ela só
+transforma texto em texto, e o montador recebe o `MASMAPRG.ASM` como recebia
+qualquer fonte. A quebra da linha em rótulo, operação e operando é a da
+`LinhaMacro`, que usa o mesmo `AnalisadorLinha.palavras` do montador; por isso
+as regras de coluna e de comentário são as mesmas nas duas etapas.
+
+### Demonstração da parte E
+
+No teste 1, mostrar o `MASMAPRG.ASM`: a definição sumiu, cada chamada virou
+comentário seguido de três linhas, e o `DOBRAR` virou `DOBRAR EQU *`. No teste
+3, mostrar que a expansão de `ESCALA 2` não gera nenhuma linha no
+`MASMAPRG.ASM`, só define `MULESC` e `DIVESC` (a definição aninhada), e que a
+chamada seguinte de `MULESC` já sai com `SHIFTR A,2`. No teste 4, seguir a pilha de expansões com a tabela da estratégia
+E2 e mostrar as chamadas de `MULT` como comentários dentro da expansão de
+`DELTA`. No código, mostrar o `proximaLinha` e o laço do `processar`. Para os
+erros, rodar o `erros/macro-recursiva.asm` e o `erros/falta-mend.asm`.
+
+### Validação da parte E (13/11/2026)
+
+Os testes foram executados em um diretório temporário fora do repositório,
+compilados com OpenJDK 25.0.1 e `javac -encoding UTF-8`. Como o `Argumentos`
+(parte A), a `Substituicao` (parte C) e o `MacroMontador` e o `MacroConsole`
+(parte F) ainda não estavam no GitHub, essas quatro classes vieram do zip da
+Etapa 3; o resto do código era o do repositório, com o `ProcessadorMacros`
+desta parte. Foram aprovadas 10 verificações:
+
+- **Testes 1 a 5 (5):** cada um passou pelo `MacroConsole` sem erros, com o
+  número de chamadas expandidas esperado (2, 2, 5, 8 e 5), e o programa objeto
+  rodou no `TesteConsole` com os valores da tabela da Seção 7.6 do guia:
+  TOTAL = 12 e DOBRO = 24; D1 = 7 e D2 = 16; R1 = 15, R2 = 240 e R3 = 7;
+  D1 = 25 e D2 = -16; CONTA = 14 e OUTRA = 97.
+- **Testes de erro (5):** cada arquivo de `testes/macros/erros/` deu
+  exatamente a mensagem da sua primeira linha: `falta o MEND da macro DOBRA`
+  (linha 3), `MEND sem MACRO correspondente` (linha 4), `parametros demais na
+  chamada de SOMA (ela tem 3)` (linha 8), `a macro LACO chama a si mesma, e a
+  expansao nunca terminaria` (linha 8, na expansão de `LACO`) e, no
+  `sem-ser.asm`, nenhum erro de macro e o `simbolo duplicado: POS` do
+  montador na linha 20 do `MASMAPRG.ASM`.
