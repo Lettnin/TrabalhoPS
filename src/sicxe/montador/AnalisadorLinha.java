@@ -77,7 +77,7 @@ public final class AnalisadorLinha {
         linha.expressao = e;
     }
 
-    private static List<String> palavras(String texto) {
+    public static List<String> palavras(String texto) {
         List<String> lista = new ArrayList<>();
         StringBuilder atual = new StringBuilder();
         boolean entreApostrofos = false;
