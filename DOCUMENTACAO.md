@@ -638,3 +638,157 @@ chamando os métodos dos botões:
 - editar o fonte desabilita o **Carregar**; trocar `LDX` por `LDZ` dá
   `linha 6: operacao desconhecida: LDZ` em vermelho, com o Carregar desabilitado;
 - nenhum arquivo de `testes/` foi alterado.
+
+## 9. Etapa 3 — A macro e a tabela de macros (Pedro, parte D)
+
+Esta parte segue os slides "03 - Macros" do professor (tabela de nomes de
+macro, tabela de definição de macros, pré-tratamento dos parâmetros formais e
+o parâmetro `SER`) e a seção 4.1 do Beck (tabela de definição com `?1`, `?2`).
+São duas classes do pacote `sicxe.macro`: `Macro`, que guarda uma definição, e
+`TabelaMacros`, que guarda todas as definições pelo nome.
+
+### Estruturas de dados
+
+**Macro** guarda uma definição em cinco campos públicos e finais:
+
+| Campo | Tipo | Conteúdo |
+|---|---|---|
+| `nome` | `String` | o nome da macro, que vem no rótulo do protótipo |
+| `linhaDefinicao` | `int` | a linha do fonte onde a definição foi lida |
+| `formais` | `List<String>` | os parâmetros formais em maiúsculas, como escritos: `&A`, `&B` |
+| `padroes` | `List<String>` | o valor padrão de cada formal, na mesma posição; `""` quando não há |
+| `esqueleto` | `List<String>` | as linhas do corpo, já com `?n` no lugar de cada formal |
+
+As listas são `ArrayList` criadas junto com o objeto. Elas são finais (a
+referência não muda), mas o conteúdo é preenchido depois: os formais e os
+padrões pela leitura do protótipo, e o esqueleto linha a linha durante a
+definição. A posição de um formal na lista mais 1 é o número que ele recebe no
+esqueleto: o primeiro formal vira `?1`, o segundo `?2`. O `?0` fica reservado
+para o número de série da expansão (`.SER`).
+
+Exemplo, para a macro do teste 1:
+
+```
+Fonte                              Guardado
+SOMA     MACRO   &A,&B,&DEST       nome = SOMA, formais = [&A, &B, &DEST], padroes = ["", "", ""]
+         LDA     &A                esqueleto[0] =          LDA     ?1
+         ADD     &B                esqueleto[1] =          ADD     ?2
+         STA     &DEST             esqueleto[2] =          STA     ?3
+         MEND
+```
+
+**TabelaMacros** guarda um `Map<String, Macro>` inicializado com
+`LinkedHashMap<>`, com o nome da macro como chave. A busca pelo nome é direta,
+e a iteração preserva a ordem em que cada nome foi definido pela primeira vez,
+usada no texto da tabela. Um mapa só faz o papel das duas tabelas dos slides: a
+tabela de nomes (para reconhecer uma chamada pela operação da linha) e a tabela
+de definição (o nome leva à `Macro`, que tem o esqueleto).
+
+### Funções desenvolvidas
+
+| Classe | Método ou construtor | Responsabilidade |
+|---|---|---|
+| `Macro` | `Macro(String nome, int linhaDefinicao)` | Cria a definição com o nome e a linha, e as três listas vazias. |
+| `Macro` | `adicionarFormal(String nome, String padrao)` | Acrescenta um formal e o seu padrão; recusa nome repetido com `ErroMacro("parametro formal repetido: &A")`, sem alterar as listas. |
+| `Macro` | `indiceFormal(String nome)` | Devolve a posição do formal, a partir de 1, ou -1 se ele não existe. Aceita o nome com ou sem `&` e em qualquer caixa. |
+| `Macro` | `formaisComSerie()` | Devolve uma nova lista com `.SER` na posição 0 seguido dos formais: `[.SER, &A, &B, &DEST]`. |
+| `Macro` | `prototipo()` | Monta o protótipo em texto, com os padrões: `INCR &VAR,&PASSO=1,&OP=ADD`. |
+| `TabelaMacros` | `definir(Macro macro)` | Guarda a macro pelo nome; se o nome já existe, a nova definição substitui a antiga. |
+| `TabelaMacros` | `existe(String nome)` | Diz se há uma macro com esse nome, sem diferenciar maiúsculas de minúsculas; `null` dá `false`. |
+| `TabelaMacros` | `buscar(String nome)` | Devolve a macro com esse nome, ou `null` se não existe. |
+| `TabelaMacros` | `todas()` | Devolve as macros na ordem de definição. |
+| `TabelaMacros` | `tamanho()` | Devolve quantas macros estão definidas. |
+| `TabelaMacros` | `comoTexto()` | Monta a tabela inteira em texto, para a aba **Tabela de macros** e para o terminal. |
+
+### Estratégias adotadas
+
+**D1 — A macro.** A `Macro` guarda só dados e algumas consultas sobre eles;
+quem lê o protótipo e o corpo e quem troca os parâmetros são outras classes do
+pacote. Três pontos do contrato:
+
+- **Formal repetido é erro.** Em `M MACRO &A,&A`, os dois `&A` teriam a mesma
+  posição de procura, e o segundo nunca seria usado. O `adicionarFormal`
+  consulta o `indiceFormal` antes de acrescentar e lança `ErroMacro` sem mexer
+  nas listas.
+- **O `indiceFormal` aceita o nome sem `&`.** Na chamada por palavra-chave, o
+  nome vai sem o `&` (`PASSO=5` para o formal `&PASSO`), como no Beck e nos
+  slides. A comparação é feita com o nome em maiúsculas, com e sem o `&` na
+  frente, então `&PASSO`, `PASSO` e `passo` dão a mesma posição (2, na macro
+  `INCR` do teste 5).
+- **O `.SER` é o formal número 0.** O `formaisComSerie` devolve a lista com
+  `.SER` na frente. Com isso, a posição de cada nome nessa lista já é o número
+  do `?n` do esqueleto: `.SER` → `?0`, `&A` → `?1`. É o "parâmetro formal
+  definido pelo sistema" dos slides, tratado como um parâmetro qualquer. A lista
+  é nova a cada chamada, então mudar a lista devolvida não muda a macro.
+
+O esqueleto usa `?1`, `?2`, como o Beck, e não `#1`, `#2`, como os slides,
+porque no SIC/XE o `#` já indica endereçamento imediato: `LDA #&A` fica
+`LDA #?1`, sem confusão com `LDA #1`.
+
+**D2 — Redefinição.** Na tabela de símbolos da Etapa 2, definir um nome que já
+existe é erro (símbolo duplicado). Na tabela de macros não é: o `definir` só
+faz `put` no mapa, e a definição nova substitui a antiga. É isso que a
+definição aninhada precisa, porque cada expansão da macro de fora define a de
+dentro de novo. No teste 3, `ESCALA 2` define `MULESC` com `SHIFTR A,2`, e
+`ESCALA 3` define `MULESC` outra vez com `SHIFTR A,3`. A chamada seguinte usa a
+última definição.
+
+Na redefinição, o `LinkedHashMap` troca o valor e mantém a chave na posição
+original: se `SOMA` foi definida antes de `INCR` e depois redefinida, ela
+continua antes de `INCR` em `todas()` e no `comoTexto()`.
+
+**Maiúsculas e `null`.** O `existe` e o `buscar` convertem o nome para
+maiúsculas antes de consultar, então `soma` e `Soma` acham a macro `SOMA`. O
+nome guardado já vem em maiúsculas da leitura do protótipo. O `existe` aceita
+`null` e devolve `false`, porque o processador consulta a operação de toda
+linha, e uma linha vazia ou só de comentário não tem operação.
+
+**D3 — A tabela em texto.** O `comoTexto` mostra, para cada macro, o
+protótipo, a linha onde ela foi definida e o esqueleto guardado, com 4 espaços
+na frente de cada linha e uma linha em branco entre as macros. Sem macros, o
+texto é `Nenhuma macro definida.`. Como o esqueleto aparece com os `?n`, a
+tabela mostra o pré-tratamento dos parâmetros feito na definição. Para o teste 1:
+
+```
+SOMA &A,&B,&DEST      (definida na linha 6)
+             LDA     ?1
+             ADD     ?2
+             STA     ?3
+```
+
+A linha mostrada é a da definição que está valendo. Por isso, no teste 3,
+`MULESC` e `DIVESC` aparecem como definidas na linha 26: a última definição
+delas veio da expansão de `ESCALA 3`, que está nessa linha do fonte.
+
+**Integração e erros.** As duas classes não imprimem nada nem sabem em que
+linha está a leitura: o `adicionarFormal` lança `ErroMacro` só com a mensagem,
+e o processador de macros junta o número da linha. A `Macro` também não
+interpreta o esqueleto; ela só guarda as linhas que recebe, na ordem.
+
+### Demonstração da parte D
+
+No teste 1, abrir a aba **Tabela de macros** e mostrar a macro `SOMA` com o
+protótipo, a linha da definição e o esqueleto com `?1`, `?2` e `?3`. No teste
+3, mostrar que o esqueleto de `ESCALA` guarda `&A`, `&B` e `&C` ainda pelo nome
+e `&N` já como `?1`, e que `MULESC` e `DIVESC` aparecem com `3` e "definida na
+linha 26", o resultado da redefinição feita pelo `ESCALA 3`. No
+teste 5, mostrar o protótipo `INCR &VAR,&PASSO=1,&OP=ADD` com os padrões.
+
+### Validação da parte D (13/11/2026)
+
+Os testes foram criados e executados em diretório temporário fora do
+repositório, sem dependências externas, compilados com JDK 25.0.2 e
+`javac --release 17 -encoding UTF-8`. Foram aprovadas 27 verificações:
+
+- **Macro (15):** protótipo com e sem padrões; `indiceFormal` com `&`, sem `&`,
+  em minúsculas e com nome inexistente (-1); `formaisComSerie` com e sem
+  formais; conteúdo de `formais` e `padroes`; formal repetido lançando
+  `parametro formal repetido: &VAR` sem alterar as listas; `nome` e
+  `linhaDefinicao`.
+- **TabelaMacros (10):** tabela vazia com tamanho 0; `existe(null)` dando
+  `false`; busca sem diferenciar maiúsculas, devolvendo o mesmo objeto; nome
+  inexistente dando `false` e `null`; redefinição sem erro, com o tamanho
+  mantido, a definição nova no lugar da antiga e a ordem original em `todas()`.
+- **comoTexto (2):** o texto da tabela vazia e o texto exato da macro `SOMA`,
+  com os 6 espaços antes de `(definida`, os 4 espaços antes de cada linha do
+  esqueleto e a linha em branco no fim.
