@@ -1179,3 +1179,75 @@ erros de macro de uma vez, sem erro em cascata; recursão indireta
 (`PING` chama `PONG`, que chama `PING`); e os casos de parâmetro faltando, espaço
 depois da vírgula e formal sem `&`, que são descritos nas estratégias. O `ErroMacro` e o `Argumentos` compilam com o `Macro` (Pedro) e
 com o `ProcessadorMacros` (João) do repositório, sem erro que os cite.
+
+## 12. Etapa 3 — Substituição de parâmetros e programas de teste (Eduardo, parte C)
+
+A `Substituicao` faz as duas trocas de texto do processador de macros: na definição, troca cada parâmetro formal do corpo pela posição dele no protótipo (`&A` → `?1`, `.SER` → `?0`); na expansão, troca cada `?n` pelo parâmetro real número n. O `ProcessadorMacros` (João) chama o `preparar` em cada linha do corpo e o `expandir` em cada linha do esqueleto. O código é o da versão de referência do grupo, sem mudanças.
+
+### Estruturas de dados
+
+A `Substituicao` não guarda dados: é uma classe final, com construtor privado e dois métodos estáticos. Ela recebe do `ProcessadorMacros`:
+
+- a **pilha de formais** (`List<List<String>>`): uma lista de formais para cada definição aberta. `pilha.get(0)` é a macro que está sendo guardada; as seguintes são macros definidas dentro dela. Cada lista tem `.SER` na posição 0 e, depois dele, os formais em maiúsculas, com o `&` (`&A`, `&B`...);
+- a **lista de parâmetros reais** (`String[] valores`), montada pelo `Argumentos` (Samuel), com o número de série de 4 dígitos na posição 0 e os padrões já aplicados.
+
+O `?n` é a notação do Beck para o parâmetro posicional. O `#` dos slides não serve aqui, porque no SIC/XE ele quer dizer imediato (`LDA #5`).
+
+### Funções desenvolvidas
+
+| Método | O que faz |
+|---|---|
+| `preparar(texto, pilha)` | Percorre o texto palavra por palavra. Se a palavra é formal da macro de fora (nível 0 da pilha), troca pela posição: `LDA &A` → `LDA ?1`, `J FIM.SER` → `J FIM?0`. O resto é copiado como está. |
+| `expandir(linha, valores)` | Troca cada `?n` por `valores[n]`: `LDA ?1` → `LDA PRECO`, `J FIM?0` → `J FIM0003`. Um `?n` sem valor vira texto vazio. |
+| `posicaoNaMacroDeFora(...)` (privado) | Procura a palavra do nível mais de dentro para o mais de fora e devolve a posição só se o primeiro nível em que ela aparece é o 0. |
+| `fimDaPalavra(...)` (privado) | Acha onde a palavra termina. Palavra é uma sequência de letras, dígitos e `&`; o `.SER` é tratado como uma palavra só, mesmo começando com ponto. |
+| `ehDaPalavra(...)` (privado) | Diz se o caractere faz parte de uma palavra. |
+
+### Estratégias adotadas
+
+- **Pré-tratamento na definição.** Os formais viram posições uma vez só, quando a macro é guardada. Assim a expansão não precisa saber o nome de nenhum formal: só troca `?n` por `valores[n]`.
+- **Troca por palavra inteira.** Com o formal `&A`, o texto `&AB` não muda, porque `&AB` é outra palavra. Isso evita trocar um pedaço de nome.
+- **Formal de macro de dentro fica com o nome.** Numa definição aninhada (teste 3), um `&X` que é formal da macro de dentro não vira `?n` na definição da de fora. Ele só é trocado quando a macro de dentro for definida, durante a expansão da de fora. Procurar do nível de dentro para o de fora é o par #(d,i) dos slides: d é o nível onde o nome foi declarado, i a posição.
+- **`.SER` é o parâmetro 0.** Ele entra na pilha de formais como os outros, e o número de série entra em `valores[0]`. Com isso, `POS.SER` vira `POS?0` na definição e `POS0001`, `POS0002`... nas expansões, sem nenhum código especial no `expandir`.
+- **Maiúsculas e minúsculas.** A palavra é comparada em maiúsculas, e o texto de fora dos formais é copiado como foi escrito.
+
+### Programas de teste e resultados esperados
+
+Os programas ficam em `testes/macros/`. Os `.lst` e `.obj` ao lado de cada fonte foram gerados pelo `MacroConsole`; a listagem mostra o fonte expandido inteiro, com endereço e bytes. O `MASMAPRG.ASM` que o `MacroConsole` grava ali não vai para o repositório.
+
+```bash
+java -cp bin sicxe.macro.MacroConsole testes/macros/<arquivo>.asm             # expande e monta
+java -cp bin sicxe.io.TesteConsole testes/macros/<arquivo>.obj <enderecos>    # roda
+```
+
+| Teste | O que exercita | Chamadas expandidas | Bytes carregados | Endereço | Valor esperado |
+|---|---|---|---|---|---|
+| `01-soma` | parâmetros posicionais; rótulo na chamada (`DOBRAR EQU *`) | 2 | 27 | TOTAL = `00001B` | `00000C` (12) |
+|  |  |  |  | DOBRO = `00001E` | `000018` (24) |
+| `02-rotulos` | rótulo dentro da macro com `.SER` (`POS0001`, `POS0002`) | 2 | 57 | D1 = `000039` | `000007` (7) |
+|  |  |  |  | D2 = `00003C` | `000010` (16) |
+| `03-definicao-aninhada` | macro que define outras macros; redefinição | 5 | 42 | R1 = `00002A` | `00000F` (15) |
+|  |  |  |  | R2 = `00002D` | `0000F0` (240) |
+|  |  |  |  | R3 = `000030` | `000007` (7) |
+| `04-chamada-aninhada` | macro que chama outra, definida depois dela; `#4` como parâmetro | 8 | 93 | D1 = `00005D` | `000019` (25) |
+|  |  |  |  | D2 = `000060` | `FFFFF0` (−16) |
+| `05-palavra-chave` | `MCDEFN`/`MCEND`; palavra-chave, padrão e parâmetro omitido | 5 | 54 | CONTA = `000030` | `00000E` (14) |
+|  |  |  |  | OUTRA = `000033` | `000061` (97) |
+
+### Testes de erro (`testes/macros/erros/`)
+
+A primeira linha de cada arquivo traz a mensagem esperada.
+
+| Arquivo | Mensagem esperada |
+|---|---|
+| `falta-mend.asm` | `macros, linha 3: falta o MEND da macro DOBRA` |
+| `mend-sem-macro.asm` | `macros, linha 4: MEND sem MACRO correspondente` |
+| `parametros-demais.asm` | `macros, linha 8: parametros demais na chamada de SOMA (ela tem 3)` |
+| `macro-recursiva.asm` | `macros, linha 8 (na expansao de LACO): a macro LACO chama a si mesma, e a expansao nunca terminaria` |
+| `sem-ser.asm` | `montador (MASMAPRG.ASM), linha 20: simbolo duplicado: POS (ja definido na linha 12)` |
+
+Os quatro primeiros são pegos pelo processador de macros, e o `MASMAPRG.ASM` não é gerado. O `sem-ser.asm` passa pelo processador sem erro; quem acusa é o montador, no fonte expandido. Ele mostra por que o `.SER` existe: é o teste 2 com `POS` no lugar de `POS.SER`.
+
+### Validação da parte C (14/11/2026)
+
+Com a `Substituicao` no lugar do esqueleto, o repositório compila por inteiro (o `MontadorConsole` da Etapa 2 ainda não está no GitHub, mas nenhuma classe depende dele). Os cinco testes passaram pelo `MacroConsole` com o número de chamadas e de bytes da tabela acima, os `.lst` e `.obj` saíram idênticos aos de referência, e o `TesteConsole` deu os valores esperados. Os cinco testes de erro deram a mensagem da primeira linha de cada arquivo.
