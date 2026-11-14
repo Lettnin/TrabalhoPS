@@ -1,0 +1,44 @@
+Linha  Ender.  Codigo objeto   Fonte
+    1                          . Teste 2 das macros - rotulo dentro da macro, com .SER.
+    2                          . DIFABS guarda em &C a diferenca absoluta |&A - &B| (exemplo ABSDIF dos
+    3                          . slides). O rotulo POS aparece em toda expansao; sem o .SER, a segunda
+    4                          . chamada criaria um segundo POS e o montador acusaria simbolo duplicado
+    5                          . (veja erros/sem-ser.asm). Com o .SER, cada expansao ganha o seu numero:
+    6                          . POS0001 na primeira, POS0002 na segunda.
+    7  000000                  TESTE2   START   0
+    8                          .         DIFABS  V1,V2,D1      . D1 = |10 - 3| = 7
+    9  000000  03202A                   LDA     V1
+   10  000003  1F202A                   SUB     V2
+   11  000006  290000                   COMP    #0
+   12  000009  372006                   JGT     POS0001       . se A - B > 0, ja e o resultado
+   13  00000C  032021                   LDA     V2
+   14  00000F  1F201B                   SUB     V1            . senao, o resultado e B - A
+   15  000012  0F2024          POS0001  STA     D1
+   16                          .         DIFABS  V3,V4,D2      . D2 = |4 - 20| = 16
+   17  000015  03201B                   LDA     V3
+   18  000018  1F201B                   SUB     V4
+   19  00001B  290000                   COMP    #0
+   20  00001E  372006                   JGT     POS0002       . se A - B > 0, ja e o resultado
+   21  000021  032012                   LDA     V4
+   22  000024  1F200C                   SUB     V3            . senao, o resultado e B - A
+   23  000027  0F2012          POS0002  STA     D2
+   24  00002A  4F0000                   RSUB
+   25  00002D  00000A          V1       WORD    10
+   26  000030  000003          V2       WORD    3
+   27  000033  000004          V3       WORD    4
+   28  000036  000014          V4       WORD    20
+   29  000039                  D1       RESW    1
+   30  00003C                  D2       RESW    1
+   31  00003F                           END     TESTE2
+
+Tabela de simbolos
+Simbolo     Valor   Tipo
+TESTE2      000000  relativo
+POS0001     000012  relativo
+POS0002     000027  relativo
+V1          00002D  relativo
+V2          000030  relativo
+V3          000033  relativo
+V4          000036  relativo
+D1          000039  relativo
+D2          00003C  relativo

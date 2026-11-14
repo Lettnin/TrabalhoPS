@@ -1,0 +1,42 @@
+Linha  Ender.  Codigo objeto   Fonte
+    1                          . Teste 3 das macros - definicao aninhada e redefinicao (exemplo SCALE dos
+    2                          . slides). ESCALA nao gera codigo: ela DEFINE as macros MULESC e DIVESC,
+    3                          . com o numero de bits do deslocamento ja trocado pelo parametro &N.
+    4                          . Antes de ESCALA ser chamada, MULESC nao existe. Cada chamada de ESCALA
+    5                          . define MULESC de novo, com outro &N (redefinicao).
+    6                          .   MULESC A,B,C:  C = (A * B) deslocado &N bits para a direita
+    7                          .   DIVESC A,B,C:  C = (A * B) deslocado &N bits para a esquerda
+    8  000000                  TESTE3   START   0
+    9                          .         ESCALA  2             . define MULESC e DIVESC com &N = 2
+   10                          .         MULESC  P,Q,R1        . R1 = 60 / 4 = 15
+   11  000000  032021                   LDA     P
+   12  000003  232021                   MUL     Q
+   13  000006  A801                     SHIFTR  A,2
+   14  000008  0F201F                   STA     R1
+   15                          .         DIVESC  P,Q,R2        . R2 = 60 * 4 = 240
+   16  00000B  032016                   LDA     P
+   17  00000E  232016                   MUL     Q
+   18  000011  A401                     SHIFTL  A,2
+   19  000013  0F2017                   STA     R2
+   20                          .         ESCALA  3             . redefine as duas com &N = 3
+   21                          .         MULESC  P,Q,R3        . R3 = 60 / 8 = 7
+   22  000016  03200B                   LDA     P
+   23  000019  23200B                   MUL     Q
+   24  00001C  A802                     SHIFTR  A,3
+   25  00001E  0F200F                   STA     R3
+   26  000021  4F0000                   RSUB
+   27  000024  000006          P        WORD    6
+   28  000027  00000A          Q        WORD    10
+   29  00002A                  R1       RESW    1
+   30  00002D                  R2       RESW    1
+   31  000030                  R3       RESW    1
+   32  000033                           END     TESTE3
+
+Tabela de simbolos
+Simbolo     Valor   Tipo
+TESTE3      000000  relativo
+P           000024  relativo
+Q           000027  relativo
+R1          00002A  relativo
+R2          00002D  relativo
+R3          000030  relativo

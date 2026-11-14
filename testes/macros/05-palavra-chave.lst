@@ -1,0 +1,37 @@
+Linha  Ender.  Codigo objeto   Fonte
+    1                          . Teste 5 das macros - notacao dos slides (MCDEFN e MCEND), parametros por
+    2                          . palavra-chave, valor padrao e parametro omitido.
+    3                          . INCR soma (ou subtrai) um passo a uma variavel. &PASSO vale 1 e &OP vale
+    4                          . ADD quando a chamada nao diz nada. O &OP ocupa o lugar da operacao: o
+    5                          . parametro pode ser qualquer pedaco da linha.
+    6  000000                  TESTE5   START   0
+    7                          .         INCR    CONTA                     . CONTA = 10 + 1 = 11 (os dois padroes)
+    8  000000  03202D                   LDA     CONTA
+    9  000003  190001                   ADD     #1
+   10  000006  0F2027                   STA     CONTA
+   11                          .         INCR    CONTA,5                   . CONTA = 11 + 5 = 16
+   12  000009  032024                   LDA     CONTA
+   13  00000C  190005                   ADD     #5
+   14  00000F  0F201E                   STA     CONTA
+   15                          .         INCR    OP=SUB,VAR=CONTA          . CONTA = 16 - 1 = 15 (palavra-chave)
+   16  000012  03201B                   LDA     CONTA
+   17  000015  1D0001                   SUB     #1
+   18  000018  0F2015                   STA     CONTA
+   19                          .         INCR    CONTA,,SUB                . CONTA = 15 - 1 = 14 (passo omitido)
+   20  00001B  032012                   LDA     CONTA
+   21  00001E  1D0001                   SUB     #1
+   22  000021  0F200C                   STA     CONTA
+   23                          .         INCR    OUTRA,OP=SUB,PASSO=3      . OUTRA = 100 - 3 = 97 (misturado)
+   24  000024  03200C                   LDA     OUTRA
+   25  000027  1D0003                   SUB     #3
+   26  00002A  0F2006                   STA     OUTRA
+   27  00002D  4F0000                   RSUB
+   28  000030  00000A          CONTA    WORD    10
+   29  000033  000064          OUTRA    WORD    100
+   30  000036                           END     TESTE5
+
+Tabela de simbolos
+Simbolo     Valor   Tipo
+TESTE5      000000  relativo
+CONTA       000030  relativo
+OUTRA       000033  relativo

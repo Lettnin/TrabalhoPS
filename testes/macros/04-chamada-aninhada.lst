@@ -1,0 +1,65 @@
+Linha  Ender.  Codigo objeto   Fonte
+    1                          . Teste 4 das macros - chamada aninhada (exemplo DISCR dos slides).
+    2                          . DELTA calcula o discriminante B*B - 4*A*C chamando a macro MULT tres
+    3                          . vezes. MULT e definida DEPOIS de DELTA: tudo bem, porque as linhas de
+    4                          . DELTA so sao lidas quando DELTA e chamada, e ai MULT ja existe.
+    5                          . O #4 mostra que o parametro real pode trazer o modo de enderecamento.
+    6  000000                  TESTE4   START   0
+    7                          .         DELTA   A1,B1,C1,D1        . 7*7 - 4*2*3 = 25
+    8                          .         MULT    A1,C1,TEMP1        . TEMP1 = A * C
+    9  000000  032048                   LDA     A1
+   10  000003  23204B                   MUL     C1
+   11  000006  0F205A                   STA     TEMP1
+   12                          .         MULT    TEMP1,#4,TEMP1     . TEMP1 = 4 * A * C
+   13  000009  032057                   LDA     TEMP1
+   14  00000C  210004                   MUL     #4
+   15  00000F  0F2051                   STA     TEMP1
+   16                          .         MULT    B1,B1,TEMP2        . TEMP2 = B * B
+   17  000012  032039                   LDA     B1
+   18  000015  232036                   MUL     B1
+   19  000018  0F204B                   STA     TEMP2
+   20  00001B  032048                   LDA     TEMP2
+   21  00001E  1F2042                   SUB     TEMP1
+   22  000021  0F2039                   STA     D1                 . D = B*B - 4*A*C
+   23                          .         DELTA   A2,B2,C2,D2        . 2*2 - 4*1*5 = -16
+   24                          .         MULT    A2,C2,TEMP1        . TEMP1 = A * C
+   25  000024  03202D                   LDA     A2
+   26  000027  232030                   MUL     C2
+   27  00002A  0F2036                   STA     TEMP1
+   28                          .         MULT    TEMP1,#4,TEMP1     . TEMP1 = 4 * A * C
+   29  00002D  032033                   LDA     TEMP1
+   30  000030  210004                   MUL     #4
+   31  000033  0F202D                   STA     TEMP1
+   32                          .         MULT    B2,B2,TEMP2        . TEMP2 = B * B
+   33  000036  03201E                   LDA     B2
+   34  000039  23201B                   MUL     B2
+   35  00003C  0F2027                   STA     TEMP2
+   36  00003F  032024                   LDA     TEMP2
+   37  000042  1F201E                   SUB     TEMP1
+   38  000045  0F2018                   STA     D2                 . D = B*B - 4*A*C
+   39  000048  4F0000                   RSUB
+   40  00004B  000002          A1       WORD    2
+   41  00004E  000007          B1       WORD    7
+   42  000051  000003          C1       WORD    3
+   43  000054  000001          A2       WORD    1
+   44  000057  000002          B2       WORD    2
+   45  00005A  000005          C2       WORD    5
+   46  00005D                  D1       RESW    1
+   47  000060                  D2       RESW    1
+   48  000063                  TEMP1    RESW    1
+   49  000066                  TEMP2    RESW    1
+   50  000069                           END     TESTE4
+
+Tabela de simbolos
+Simbolo     Valor   Tipo
+TESTE4      000000  relativo
+A1          00004B  relativo
+B1          00004E  relativo
+C1          000051  relativo
+A2          000054  relativo
+B2          000057  relativo
+C2          00005A  relativo
+D1          00005D  relativo
+D2          000060  relativo
+TEMP1       000063  relativo
+TEMP2       000066  relativo

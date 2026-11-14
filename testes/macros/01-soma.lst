@@ -1,0 +1,30 @@
+Linha  Ender.  Codigo objeto   Fonte
+    1                          . Teste 1 das macros - a macro mais simples, com parametros posicionais.
+    2                          . SOMA guarda em &DEST a soma de &A com &B. Ela e chamada duas vezes:
+    3                          . cada chamada vira tres linhas, com os parametros reais no lugar dos
+    4                          . formais. A segunda chamada tem rotulo, que vira "DOBRAR EQU *".
+    5  000000                  TESTE1   START   0
+    6                          .         SOMA    PRECO,FRETE,TOTAL    . TOTAL = 5 + 7 = 12
+    7  000000  032012                   LDA     PRECO
+    8  000003  1B2012                   ADD     FRETE
+    9  000006  0F2012                   STA     TOTAL
+   10                          .DOBRAR   SOMA    TOTAL,TOTAL,DOBRO    . DOBRO = 12 + 12 = 24
+   11  000009                  DOBRAR   EQU     *
+   12  000009  03200F                   LDA     TOTAL
+   13  00000C  1B200C                   ADD     TOTAL
+   14  00000F  0F200C                   STA     DOBRO
+   15  000012  4F0000                   RSUB
+   16  000015  000005          PRECO    WORD    5
+   17  000018  000007          FRETE    WORD    7
+   18  00001B                  TOTAL    RESW    1
+   19  00001E                  DOBRO    RESW    1
+   20  000021                           END     TESTE1
+
+Tabela de simbolos
+Simbolo     Valor   Tipo
+TESTE1      000000  relativo
+DOBRAR      000009  relativo
+PRECO       000015  relativo
+FRETE       000018  relativo
+TOTAL       00001B  relativo
+DOBRO       00001E  relativo
