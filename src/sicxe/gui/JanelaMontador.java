@@ -22,9 +22,15 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 
+import sicxe.macro.MacroMontador;
 import sicxe.maquina.Palavra;
 import sicxe.montador.Montador;
 import sicxe.montador.TabelaSimbolos;
+
+// Etapa 3: o botao Montar passa pelo MacroMontador. Primeiro o processador
+// de macros expande o fonte (aba "Fonte expandido", que tambem e gravada
+// como MASMAPRG.ASM na pasta do fonte); depois o montador monta o texto
+// expandido. A aba "Tabela de macros" mostra o esqueleto de cada macro.
 
 // Janela do montador (Etapa 2). A esquerda fica o fonte, que da para
 // editar. A direita, em abas, a listagem, a tabela de simbolos e o
@@ -41,12 +47,14 @@ public class JanelaMontador extends JFrame {
     private static final Color COR_OK = new Color(30, 130, 60);
 
     private final JanelaPrincipal simulador;
-    private final Montador montador = new Montador();
+    private final MacroMontador macroMontador = new MacroMontador();
 
     private final JTextArea editor = new JTextArea();
     private final JTextArea numerosDasLinhas = new JTextArea("  1 ");
     private final JTextArea listagem = new JTextArea();
     private final JTextArea programaObjeto = new JTextArea();
+    private final JTextArea fonteExpandido = new JTextArea();
+    private final JTextArea tabelaMacros = new JTextArea();
     private final JTextArea mensagens = new JTextArea(4, 40);
     private final DefaultTableModel modeloSimbolos =
             new DefaultTableModel(new String[] { "Simbolo", "Valor", "Tipo", "Linha" }, 0);
@@ -68,13 +76,16 @@ public class JanelaMontador extends JFrame {
         setLocationRelativeTo(null);
 
         Font mono = new Font(Font.MONOSPACED, Font.PLAIN, 13);
-        for (JTextArea area : new JTextArea[] { editor, numerosDasLinhas, listagem, programaObjeto, mensagens }) {
+        for (JTextArea area : new JTextArea[] { editor, numerosDasLinhas, listagem, programaObjeto, mensagens,
+                fonteExpandido, tabelaMacros }) {
             area.setFont(mono);
         }
         numerosDasLinhas.setEditable(false);
         numerosDasLinhas.setBackground(new Color(235, 235, 235));
         listagem.setEditable(false);
         programaObjeto.setEditable(false);
+        fonteExpandido.setEditable(false);
+        tabelaMacros.setEditable(false);
         mensagens.setEditable(false);
 
         // Qualquer mudanca no fonte invalida a montagem anterior.
@@ -110,6 +121,8 @@ public class JanelaMontador extends JFrame {
         abas.addTab("Listagem", new JScrollPane(listagem));
         abas.addTab("Tabela de simbolos", new JScrollPane(tabelaSimbolos));
         abas.addTab("Programa objeto", new JScrollPane(programaObjeto));
+        abas.addTab("Fonte expandido", new JScrollPane(fonteExpandido));
+        abas.addTab("Tabela de macros", new JScrollPane(tabelaMacros));
 
         JSplitPane divisor = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, rolagemEditor, abas);
         divisor.setResizeWeight(0.4);
@@ -158,10 +171,29 @@ public class JanelaMontador extends JFrame {
         }
     }
 
-    // Monta o texto que esta no editor (mesmo que ainda nao tenha sido salvo).
+    // Expande as macros e monta o texto que esta no editor (mesmo que ainda
+    // nao tenha sido salvo).
     private void montar() {
         List<String> fonte = Arrays.asList(editor.getText().split("\\r?\\n"));
-        resultado = montador.montar(fonte);
+        MacroMontador.Resultado r = macroMontador.processar(fonte);
+
+        fonteExpandido.setText(String.join("\n", r.macros.expandido));
+        fonteExpandido.setCaretPosition(0);
+        tabelaMacros.setText(r.macros.macros.comoTexto());
+        tabelaMacros.setCaretPosition(0);
+        if (r.macros.temErros()) {
+            resultado = null;
+            listagem.setText("");
+            programaObjeto.setText("");
+            modeloSimbolos.setRowCount(0);
+            mostrarMensagem(r.macros.erros.size() + " erro(s) nas macros. O fonte nao foi montado.\n"
+                    + String.join("\n", r.erros()), COR_ERRO);
+            abas.setSelectedIndex(3);       // aba Fonte expandido
+            botaoCarregar.setEnabled(false);
+            return;
+        }
+        resultado = r.montagem;
+        String gravado = gravarExpandido(r);
 
         listagem.setText(resultado.listagem);
         listagem.setCaretPosition(0);
@@ -174,7 +206,7 @@ public class JanelaMontador extends JFrame {
 
         if (resultado.temErros()) {
             mostrarMensagem(resultado.erros.size() + " erro(s). O programa objeto nao foi gerado.\n"
-                    + String.join("\n", resultado.erros), COR_ERRO);
+                    + String.join("\n", r.erros()), COR_ERRO);
             abas.setSelectedIndex(0);
             botaoCarregar.setEnabled(false);
         } else {
@@ -182,7 +214,8 @@ public class JanelaMontador extends JFrame {
                     + ", comeca em " + Palavra.hex(resultado.enderecoInicial, 6)
                     + ", tamanho " + Palavra.hex(resultado.tamanhoPrograma, 6)
                     + " (" + resultado.tamanhoPrograma + " bytes), execucao em "
-                    + Palavra.hex(resultado.enderecoExecucao, 6) + ".", COR_OK);
+                    + Palavra.hex(resultado.enderecoExecucao, 6) + ".\n"
+                    + r.macros.expansoes + " chamada(s) de macro expandida(s)." + gravado, COR_OK);
             botaoCarregar.setEnabled(true);
         }
     }
@@ -198,6 +231,21 @@ public class JanelaMontador extends JFrame {
             simulador.toFront();
         } catch (IOException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Erro ao gravar o .obj", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // Grava o fonte expandido como MASMAPRG.ASM, na pasta do fonte. Se o
+    // fonte ainda nao foi salvo, nao ha pasta: so mostra na aba.
+    private String gravarExpandido(MacroMontador.Resultado r) {
+        if (arquivoFonte == null) {
+            return "";
+        }
+        File arquivo = MacroMontador.arquivoExpandido(arquivoFonte);
+        try {
+            Montador.gravar(arquivo, String.join("\n", r.macros.expandido) + "\n");
+            return " Fonte expandido gravado em " + arquivo.getPath() + ".";
+        } catch (IOException ex) {
+            return " Nao foi possivel gravar o " + MacroMontador.ARQUIVO_EXPANDIDO + ": " + ex.getMessage();
         }
     }
 
