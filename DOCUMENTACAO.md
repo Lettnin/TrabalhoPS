@@ -1024,3 +1024,158 @@ desta parte. Foram aprovadas 10 verificações:
   expansao nunca terminaria` (linha 8, na expansão de `LACO`) e, no
   `sem-ser.asm`, nenhum erro de macro e o `simbolo duplicado: POS` do
   montador na linha 20 do `MASMAPRG.ASM`.
+
+## 11. Etapa 3 — Listas de parâmetros (Samuel, parte A)
+
+Esta parte segue o capítulo 4 do Beck e os slides "03 - Macros" do professor (o
+protótipo com os parâmetros formais e a lista de parâmetros reais da chamada). A
+implementação parte de uma versão de referência do grupo, montada a partir desse
+material; ela foi conferida e testada, e os cuidados que encontramos estão
+descritos nas estratégias abaixo. São duas classes do pacote `sicxe.macro`:
+`ErroMacro`, a exceção do processador de macros, e `Argumentos`, que lê os
+parâmetros formais do protótipo e associa os parâmetros reais de cada chamada.
+
+### Estruturas de dados
+
+**ErroMacro** é uma exceção (`RuntimeException`) lançada por quem detecta um erro
+de macro: parâmetros demais na chamada, palavra-chave inexistente, formal mal
+escrito. Quem lança não sabe em que linha está. O `ProcessadorMacros` captura o
+erro, junta o número da linha e segue para a linha seguinte, de modo que todos os
+erros aparecem de uma vez, como o montador faz com o `ErroMontagem`.
+
+**Argumentos** não guarda dados: é uma classe final, com construtor privado e
+três métodos estáticos. O que ela produz é a **lista de parâmetros reais** dos
+slides, um `String[] valores` com uma posição a mais que o número de formais:
+
+| Posição | Conteúdo | Quem preenche |
+|---|---|---|
+| `valores[0]` | o número de série da expansão (`.SER`) | o `ProcessadorMacros`; o `associar` deixa `null` |
+| `valores[1]` a `valores[n]` | o parâmetro real de cada formal, ou o padrão | `Argumentos.associar` |
+
+A posição `k` do vetor é a mesma do `?k` no esqueleto da macro (Pedro):
+`valores[1]` substitui o `?1`, `valores[2]` o `?2`, e assim por diante.
+
+Exemplo, com `INCR  MACRO  &VAR,&PASSO=1,&OP=ADD` (formais `[&VAR, &PASSO, &OP]` e
+padrões `["", "1", "ADD"]`):
+
+| Chamada | `valores` devolvido |
+|---|---|
+| `INCR CONTA` | `[null, CONTA, 1, ADD]` |
+| `INCR CONTA,5` | `[null, CONTA, 5, ADD]` |
+| `INCR OP=SUB,VAR=CONTA` | `[null, CONTA, 1, SUB]` |
+| `INCR CONTA,,SUB` | `[null, CONTA, 1, SUB]` |
+| `INCR OUTRA,OP=SUB,PASSO=3` | `[null, OUTRA, 3, SUB]` |
+
+### Funções desenvolvidas
+
+| Classe | Método ou construtor | Responsabilidade |
+|---|---|---|
+| `ErroMacro` | `ErroMacro(String mensagem)` | Cria o erro com a mensagem que vai para a lista de erros, depois de o processador juntar o número da linha. |
+| `Argumentos` | `separar(String operando)` | Quebra o operando nas vírgulas, sem quebrar dentro de apóstrofos: `A,C'X,Y',,B` dá quatro itens (`A`, `C'X,Y'`, vazio e `B`). `null` e `""` dão lista vazia. |
+| `Argumentos` | `lerFormais(Macro macro, String operando)` | Lê o protótipo (`&A,&B,&C=TOTAL`) e guarda cada formal, em maiúsculas, e o seu padrão (ou `""`) na `Macro`, pelo `adicionarFormal`. Lança `ErroMacro` se o nome for inválido. |
+| `Argumentos` | `associar(Macro macro, String operando)` | Associa os parâmetros reais da chamada aos formais, por posição ou por palavra-chave, e devolve o `String[] valores`. Quem ficou sem valor, ou com valor vazio, recebe o padrão. |
+| `Argumentos` | `nomeValido(String nome)` (privado) | Confere `&NOME` ou `NOME`: uma letra no começo e depois só letras e dígitos. |
+
+### Estratégias adotadas
+
+- **Vírgula entre apóstrofos não separa.** O `separar` anda pelo texto caractere a
+  caractere e inverte o `entreApostrofos` a cada `'`; só uma vírgula fora dos
+  apóstrofos fecha um parâmetro. É o mesmo cuidado que o montador tem com a
+  constante `C'...'`, de modo que `C'A,B'` é um parâmetro só. Um parâmetro vazio
+  (`X,,Z`) é mantido como item vazio, porque a posição dele conta.
+- **Posicional ou palavra-chave.** Um parâmetro real é palavra-chave quando tem um
+  `=` e o que vem antes é um nome válido; a posição é buscada com o
+  `Macro.indiceFormal`, que aceita o nome com ou sem `&` (na chamada se escreve
+  `PASSO=5` para o formal `&PASSO`). Os demais são posicionais. Um `=` dentro de
+  apóstrofos (`C'A=B'`) ou no começo (`=C'A'`) não faz do parâmetro uma
+  palavra-chave.
+- **O contador do posicional só conta posicionais.** A variável
+  `proximaPosicao` só avança nos parâmetros posicionais e não pula posições já
+  preenchidas por palavra-chave. Por isso a ordem importa: `OUTRA,OP=SUB,PASSO=3`
+  funciona (o posicional vai para a posição 1 e as palavras-chave para as
+  posições 3 e 2), mas `VAR=B,A` dá erro, porque o `A` iria para a posição 1, que
+  a palavra-chave `VAR` já preencheu.
+- **Omitido ou vazio vira o padrão.** Depois de associar tudo, cada posição sem
+  valor, ou com valor vazio, recebe o padrão do protótipo. É assim que
+  `CONTA,,SUB` dá `PASSO = 1`. Sem padrão, o valor fica vazio e, se a linha
+  precisar dele, quem reclama é o montador. O valor é copiado como texto, sem ser
+  avaliado, como o resto do processador.
+- **Erros.** Todos são `ErroMacro`, sem número de linha; o processador junta a
+  linha:
+
+| Situação | Mensagem |
+|---|---|
+| Formal mal escrito | `parametro formal invalido: '&1X' (use &NOME, so letras e digitos)` |
+| Formal repetido (lançado pela `Macro`) | `parametro formal repetido: &A` |
+| Palavra-chave que não existe | `a macro INCR nao tem o parametro ZZ` |
+| Parâmetros demais | `parametros demais na chamada de INCR (ela tem 3)` |
+| Mesmo parâmetro duas vezes | `o parametro &VAR recebeu valor duas vezes` |
+
+- **Formais sem `&`.** O `nomeValido` aceita o nome com ou sem `&`, porque também
+  serve aos nomes de palavra-chave, que não levam `&`; por isso o `lerFormais`
+  aceita `SOMA MACRO P,Q`. Isso funciona se o corpo escreve os nomes do mesmo
+  jeito (`LDA P`), mas o `&` é recomendado: sem ele, um formal com o nome de um
+  registrador ou de uma instrução (`A`, `X`, `ADD`) troca também essas palavras
+  no corpo, porque a troca é por palavra inteira. E a mistura não funciona: com
+  `SOMA MACRO A,B` e o corpo `LDA &A`, o `&A` nunca é trocado, e o montador
+  reclama depois, no fonte expandido, com `simbolo indefinido: &A`. Todos os
+  testes escrevem os formais com `&`.
+- **Espaço depois da vírgula.** A chamada `SOMA X, Y` tem um parâmetro só: depois
+  do operando, o resto da linha é comentário (a mesma regra do montador), então o
+  `Y` não chega ao `Argumentos`. Os parâmetros se escrevem sem espaços:
+  `SOMA X,Y`.
+- **Reaproveitamento.** As duas classes não mexem no montador da Etapa 2 nem na
+  `Macro` do Pedro: o `Argumentos` só usa o `adicionarFormal`, o `indiceFormal`,
+  a lista `formais` e a lista `padroes` dela.
+
+### Demonstração da parte A
+
+No teste 5 (`05-palavra-chave.asm`), mostrar as cinco chamadas do `INCR` e o que
+o `associar` devolve para cada uma (a tabela das estruturas de dados): os dois
+padrões (`INCR CONTA`, `CONTA` vira 11), o posicional (`INCR CONTA,5`, 16), a
+palavra-chave em qualquer ordem (`OP=SUB,VAR=CONTA`, 15), o parâmetro omitido
+(`CONTA,,SUB`, 14) e o misturado (`OUTRA,OP=SUB,PASSO=3`, `OUTRA` vira 97). Mostrar
+também o `C'X,Y'` como parâmetro único. Para o erro, rodar o
+`erros/parametros-demais.asm`: o `associar` lança `parametros demais na chamada
+de SOMA (ela tem 3)`, e o processador acrescenta `macros, linha 8`.
+
+### Validação da parte A (13/11/2026)
+
+Os testes foram executados em diretório temporário fora do repositório,
+compilados com OpenJDK 25.0.5 e `javac -encoding UTF-8`, sem alterar testes
+oficiais. Foram aprovadas 34 verificações diretas:
+
+- **`separar` (9):** o exemplo `A,C'X,Y',,B` (quatro itens, o terceiro vazio),
+  `null`, `""`, `X,,Z`, vírgula no fim, só uma vírgula e `X'F1,F2',Z`.
+- **`lerFormais` (9):** formais, padrões e protótipo de `&VAR,&PASSO=1,&OP=ADD`,
+  maiúsculas, padrão preservado como escrito, os erros de nome inválido (`&1X` e
+  item vazio), de formal repetido e o operando `null`.
+- **`associar` (12):** os dois exemplos do guia (`CONTA,,SUB` e
+  `OP=SUB,VAR=X`), as cinco chamadas do teste 5, operando `null`, vírgula e `=`
+  dentro de apóstrofos, palavra-chave com `&` e em minúsculas e o `=C'A'` como
+  posicional.
+- **Erros (4):** parâmetros demais, palavra-chave inexistente, valor duas vezes e
+  palavra-chave seguida de posicional na mesma posição.
+
+Na data desta validação, o `Substituicao` (parte C), o `MacroMontador` e o
+`MacroConsole` (parte F) e o `MontadorConsole` (Etapa 2) ainda não estavam no
+GitHub; por isso o repositório ainda não compilava por inteiro, e o `Argumentos`
+foi testado com essas quatro classes vindas da versão de referência do grupo, e
+com o resto do código do repositório, incluindo o `ProcessadorMacros` do João.
+Nessa montagem, os cinco testes passaram pelo `MacroConsole` sem erros, com o
+número de chamadas esperado (2, 2, 5, 8 e 5), os `.obj` e `.lst` idênticos aos de
+referência e os valores da tabela de testes: TOTAL = 12 e DOBRO = 24; D1 = 7 e
+D2 = 16; R1 = 15, R2 = 240 e R3 = 7; D1 = 25 e D2 = -16; CONTA = 14 e OUTRA = 97.
+Os cinco arquivos de `testes/macros/erros/` deram a mensagem da primeira linha,
+entre elas `parametros demais na chamada de SOMA (ela tem 3)`, que vem do
+`Argumentos`.
+
+Foram rodados também 14 programas de borda, fora dos testes oficiais, e todos
+tiveram o resultado esperado: formais com prefixo igual (`&A` e `&AB`); fonte em
+minúsculas, com tabulação e fim de linha CRLF; redefinição de macro; macro vazia
+e macro sem parâmetros; rótulo na chamada; `+LDA #&V` e `LDA @&V`; macro que chama
+outra definida depois dela; vírgula e valor hexadecimal entre apóstrofos; seis
+erros de macro de uma vez, sem erro em cascata; recursão indireta
+(`PING` chama `PONG`, que chama `PING`); e os casos de parâmetro faltando, espaço
+depois da vírgula e formal sem `&`, que são descritos nas estratégias. O `ErroMacro` e o `Argumentos` compilam com o `Macro` (Pedro) e
+com o `ProcessadorMacros` (João) do repositório, sem erro que os cite.
